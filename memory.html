@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hextrix Memory Visualization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --primary-dark: #121212;
+            --secondary-dark: #1e1e1e;
+            --accent-blue: #4a7bff;
+            --accent-purple: #9c27b0;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --neuron-color: #4a7bff;
+            --synapse-color: rgba(74, 123, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--primary-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            width: 100%;
+            background-color: var(--secondary-dark);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+        }
+
+        #brain-container {
+            width: 100%;
+            height: calc(100vh - 100px);
+            position: relative;
+        }
+
+        .node {
+            fill: var(--neuron-color);
+            transition: r 0.3s ease;
+        }
+
+        .node:hover {
+            fill: var(--accent-purple);
+            cursor: pointer;
+        }
+
+        .link {
+            stroke: var(--synapse-color);
+            stroke-width: 2;
+        }
+
+        .node-label {
+            font-size: 12px;
+            fill: var(--text-primary);
+            pointer-events: none;
+            text-anchor: middle;
+        }
+
+        .pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0% { r: 5; }
+            50% { r: 8; }
+            100% { r: 5; }
+        }
+
+        .synapse-flash {
+            animation: flash 1s ease-out;
+        }
+
+        @keyframes flash {
+            0% { stroke: var(--accent-purple); stroke-width: 3; }
+            100% { stroke: var(--synapse-color); stroke-width: 2; }
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-top: 10px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .back-button:hover {
+            color: var(--accent-blue);
+        }
+
+        .expanded-link {
+            stroke: var(--accent-purple);
+        }
+
+        .new-link {
+            stroke-dasharray: 5;
+            animation: dash 1s linear;
+        }
+
+        @keyframes dash {
+            to { stroke-dashoffset: 20; }
+        }
+
+        .category {
+            opacity: 0.9;
+        }
+
+        .cross-category {
+            opacity: 0.5;
+            stroke-dasharray: 3;
+        }
+
+        .new-category {
+            opacity: 0.8;
+            stroke: var(--accent-purple);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Hextrix Memory Network</h1>
+    </div>
+    <div id="brain-container"></div>
+
+    <script>
+        class MemoryNetwork {
+            constructor(container) {
+                this.container = container;
+                this.width = container.clientWidth;
+                this.height = container.clientHeight;
+                this.nodes = [];
+                this.links = [];
+                this.nodeMap = new Map(); // Map to track nodes by their labels
+                this.categories = new Map(); // Map to track memory categories
+                this.simulation = null;
+                this.svg = null;
+                this.initialize();
+
+                // Set up event listener for new memories
+                window.addEventListener('hextrix_memory_update', () => this.updateMemories());
+            }
+
+            initialize() {
+                this.svg = d3.select(this.container)
+                    .append('svg')
+                    .attr('width', this.width)
+                    .attr('height', this.height);
+
+                this.simulation = d3.forceSimulation()
+                    .force('charge', d3.forceManyBody().strength(-200)) // Increased repulsion
+                    .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+                    .force('link', d3.forceLink().id(d => d.id).distance(150)) // Increased link distance
+                    .force('collision', d3.forceCollide().radius(d => d.radius * 2)) // Added collision detection
+                    .on('tick', () => this.tick());
+
+                // Load existing memories from localStorage
+                this.loadMemories();
+            }
+
+            loadMemories() {
+                const history = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+                const keywords = this.extractKeywords(history);
+                this.createMemoryNetwork(keywords);
+
+                // Add a back button to return to the main interface
+                this.addBackButton();
+            }
+
+            addBackButton() {
+                const header = document.querySelector('.header');
+                if (!header.querySelector('.back-button')) {
+                    const backButton = document.createElement('a');
+                    backButton.href = 'index.html';
+                    backButton.className = 'back-button';
+                    backButton.textContent = '← Back to Interface';
+                    header.appendChild(backButton);
+                }
+            }
+
+            updateMemories() {
+                // Get the latest conversation history
+                const history = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+
+                // Only process new messages (those added since last update)
+                const lastProcessedIndex = this.lastProcessedIndex || 0;
+                const newMessages = history.slice(lastProcessedIndex);
+
+                if (newMessages.length > 0) {
+                    // Extract keywords from new messages
+                    const newKeywords = this.extractKeywordsFromMessages(newMessages);
+
+                    // Add new nodes and connections
+                    this.addNewMemories(newKeywords, history.length);
+
+                    // Update the last processed index
+                    this.lastProcessedIndex = history.length;
+                }
+            }
+
+            extractKeywords(history) {
+                const keywords = new Set();
+                history.forEach(msg => {
+                    const extractedWords = this.extractWordsFromMessage(msg);
+                    extractedWords.forEach(word => keywords.add(word));
+                });
+                return Array.from(keywords).slice(0, 50); // Increased limit for better network
+            }
+
+            extractKeywordsFromMessages(messages) {
+                const keywords = new Set();
+                messages.forEach(msg => {
+                    const extractedWords = this.extractWordsFromMessage(msg);
+                    extractedWords.forEach(word => keywords.add(word));
+                });
+                return Array.from(keywords);
+            }
+
+            extractWordsFromMessage(msg) {
+                // Common stopwords to filter out
+                const stopwords = ['about', 'after', 'again', 'could', 'every', 'first', 'found', 'great', 'house', 'large',
+                                  'learn', 'never', 'other', 'place', 'point', 'right', 'small', 'sound', 'still', 'study',
+                                  'their', 'there', 'these', 'thing', 'think', 'three', 'water', 'where', 'which', 'world',
+                                  'would', 'write', 'should', 'because', 'between', 'through', 'during', 'before', 'after'];
+
+                return msg.content
+                    .toLowerCase()
+                    .split(/\W+/)
+                    .filter(word => word.length > 3) // Reduced length requirement to catch more words
+                    .filter(word => !stopwords.includes(word));
+            }
+
+            createMemoryNetwork(keywords) {
+                // Clear existing node map
+                this.nodeMap.clear();
+
+                // Create nodes with categories
+                this.nodes = keywords.map((word, index) => {
+                    // Assign a category based on word characteristics
+                    const category = this.categorizeWord(word);
+
+                    const node = {
+                        id: `node${index}`,
+                        label: word,
+                        radius: 5 + Math.random() * 3,
+                        category: category,
+                        strength: 1, // Initial memory strength
+                        createdAt: Date.now() // Timestamp for when this memory was created
+                    };
+
+                    // Store in nodeMap for quick lookup
+                    this.nodeMap.set(word, node);
+
+                    // Track categories
+                    if (!this.categories.has(category)) {
+                        this.categories.set(category, []);
+                    }
+                    this.categories.get(category).push(node);
+
+                    return node;
+                });
+
+                // Create semantic links between related words
+                this.links = [];
+
+                // Connect words within the same category more densely
+                this.categories.forEach((nodes, category) => {
+                    // Connect nodes within the same category
+                    for (let i = 0; i < nodes.length; i++) {
+                        const numLinks = Math.min(nodes.length - 1, 2 + Math.floor(Math.random() * 3));
+                        const connectedIndices = new Set();
+
+                        for (let j = 0; j < numLinks; j++) {
+                            let targetIndex;
+                            do {
+                                targetIndex = Math.floor(Math.random() * nodes.length);
+                            } while (targetIndex === i || connectedIndices.has(targetIndex));
+
+                            connectedIndices.add(targetIndex);
+
+                            this.links.push({
+                                source: nodes[i].id,
+                                target: nodes[targetIndex].id,
+                                strength: 0.7, // Stronger connections within category
+                                type: 'category'
+                            });
+                        }
+                    }
+                });
+
+                // Add some cross-category connections for diversity
+                const categoryKeys = Array.from(this.categories.keys());
+                for (let i = 0; i < categoryKeys.length; i++) {
+                    const sourceCategory = categoryKeys[i];
+                    const sourceNodes = this.categories.get(sourceCategory);
+
+                    // Select a random node from this category
+                    const sourceNode = sourceNodes[Math.floor(Math.random() * sourceNodes.length)];
+
+                    // Connect to a node in a different category
+                    const targetCategoryIndex = (i + 1 + Math.floor(Math.random() * (categoryKeys.length - 1))) % categoryKeys.length;
+                    const targetCategory = categoryKeys[targetCategoryIndex];
+                    const targetNodes = this.categories.get(targetCategory);
+                    const targetNode = targetNodes[Math.floor(Math.random() * targetNodes.length)];
+
+                    this.links.push({
+                        source: sourceNode.id,
+                        target: targetNode.id,
+                        strength: 0.3, // Weaker cross-category connections
+                        type: 'cross-category'
+                    });
+                }
+
+                this.updateVisualization();
+            }
+
+            categorizeWord(word) {
+                // Simple categorization based on first letter
+                // In a real implementation, this would use more sophisticated NLP techniques
+                const firstChar = word.charAt(0).toLowerCase();
+
+                if ('aeiou'.includes(firstChar)) return 'concept';
+                if ('bcdfg'.includes(firstChar)) return 'entity';
+                if ('hjklm'.includes(firstChar)) return 'action';
+                if ('npqrs'.includes(firstChar)) return 'attribute';
+                return 'relation';
+            }
+
+            addNewMemories(newKeywords, timestamp) {
+                if (newKeywords.length === 0) return;
+
+                const startIndex = this.nodes.length;
+                const newNodes = [];
+
+                // Create nodes for new keywords
+                newKeywords.forEach((word, i) => {
+                    // Skip if this word is already in the network
+                    if (this.nodeMap.has(word)) {
+                        // Strengthen existing memory
+                        const existingNode = this.nodeMap.get(word);
+                        existingNode.strength += 0.5;
+                        existingNode.radius = Math.min(10, 5 + existingNode.strength);
+                        return;
+                    }
+
+                    const category = this.categorizeWord(word);
+                    const node = {
+                        id: `node${startIndex + i}`,
+                        label: word,
+                        radius: 5 + Math.random() * 3,
+                        category: category,
+                        strength: 1,
+                        createdAt: timestamp,
+                        isNew: true // Mark as new for animation
+                    };
+
+                    this.nodeMap.set(word, node);
+                    newNodes.push(node);
+
+                    // Add to category
+                    if (!this.categories.has(category)) {
+                        this.categories.set(category, []);
+                    }
+                    this.categories.get(category).push(node);
+                });
+
+                // Add new nodes to the network with initial positions near the center
+                newNodes.forEach(node => {
+                    node.x = this.width / 2 + (Math.random() - 0.5) * 100;
+                    node.y = this.height / 2 + (Math.random() - 0.5) * 100;
+                });
+                this.nodes = [...this.nodes, ...newNodes];
+
+                // Create connections for new nodes
+                newNodes.forEach(newNode => {
+                    // Connect to other new nodes in the same category
+                    const sameCategory = newNodes.filter(n =>
+                        n.id !== newNode.id && n.category === newNode.category);
+
+                    // Connect to some existing nodes in the same category
+                    const existingInCategory = this.nodes.filter(n =>
+                        !newNodes.includes(n) && n.category === newNode.category);
+
+                    // Connect to some random nodes for diversity
+                    const randomNodes = this.nodes.filter(n =>
+                        !newNodes.includes(n) && n.category !== newNode.category);
+
+                    // Add connections to same category new nodes
+                    sameCategory.slice(0, 2).forEach(target => {
+                        this.links.push({
+                            source: newNode.id,
+                            target: target.id,
+                            strength: 0.8,
+                            type: 'new-category',
+                            isNew: true
+                        });
+                    });
+
+                    // Add connections to existing nodes in same category
+                    if (existingInCategory.length > 0) {
+                        const numConnections = Math.min(2, existingInCategory.length);
+                        for (let i = 0; i < numConnections; i++) {
+                            const target = existingInCategory[Math.floor(Math.random() * existingInCategory.length)];
+                            this.links.push({
+                                source: newNode.id,
+                                target: target.id,
+                                strength: 0.6,
+                                type: 'category',
+                                isNew: true
+                            });
+                        }
+                    }
+
+                    // Add one random connection for diversity
+                    if (randomNodes.length > 0) {
+                        const target = randomNodes[Math.floor(Math.random() * randomNodes.length)];
+                        this.links.push({
+                            source: newNode.id,
+                            target: target.id,
+                            strength: 0.3,
+                            type: 'cross-category',
+                            isNew: true
+                        });
+                    }
+                });
+
+                // Update visualization with new nodes and links
+                this.updateVisualization();
+
+                // Animate new nodes
+                this.animateNewNodes();
+            }
+
+            updateVisualization() {
+                // Update links with different styles based on type
+                const links = this.svg.selectAll('.link')
+                    .data(this.links)
+                    .join('line')
+                    .attr('class', d => `link ${d.type || ''} ${d.isNew ? 'new-link' : ''}`)
+                    .style('stroke-width', d => d.strength ? d.strength * 2 : 2);
+
+                // Update nodes with category-based styling
+                const nodes = this.svg.selectAll('.node-group')
+                    .data(this.nodes)
+                    .join('g')
+                    .attr('class', d => `node-group ${d.category || ''} ${d.isNew ? 'new-node' : ''}`);
+
+                nodes.selectAll('circle')
+                    .data(d => [d])
+                    .join('circle')
+                    .attr('class', 'node')
+                    .attr('r', d => d.radius)
+                    .style('fill', d => {
+                        // Color nodes by category
+                        switch(d.category) {
+                            case 'concept': return '#4a90e2'; // Brighter blue
+                            case 'entity': return '#9c27b0'; // Vibrant purple
+                            case 'action': return '#2ecc71'; // Bright green
+                            case 'attribute': return '#f39c12'; // Golden yellow
+                            case 'relation': return '#e74c3c'; // Bright red
+                            default: return 'var(--neuron-color)';
+                        }
+                    })
+                    .on('mouseover', (event, d) => this.highlightConnections(d))
+                    .on('click', (event, d) => this.expandNode(d));
+
+                nodes.selectAll('text')
+                    .data(d => [d])
+                    .join('text')
+                    .attr('class', 'node-label')
+                    .attr('dy', 15)
+                    .text(d => d.label);
+
+                this.simulation
+                    .nodes(this.nodes)
+                    .force('link').links(this.links);
+
+                this.simulation.alpha(1).restart();
+            }
+
+            animateNewNodes() {
+                // Add pulse animation to new nodes
+                this.svg.selectAll('.node')
+                    .filter(d => d.isNew)
+                    .classed('pulse', true)
+                    .style('fill-opacity', 0.7)
+                    .transition()
+                    .duration(1000)
+                    .style('fill-opacity', 1)
+                    .on('end', function() {
+                        d3.select(this).classed('pulse', false);
+                    });
+
+                // Animate new links
+                this.svg.selectAll('.link')
+                    .filter(d => d.isNew)
+                    .classed('synapse-flash', true)
+                    .transition()
+                    .duration(1500)
+                    .on('end', function() {
+                        d3.select(this).classed('synapse-flash', false);
+                    });
+
+                // Remove the isNew flag after animation
+                setTimeout(() => {
+                    this.nodes.forEach(node => {
+                        if (node.isNew) node.isNew = false;
+                    });
+                    this.links.forEach(link => {
+                        if (link.isNew) link.isNew = false;
+                    });
+                }, 1500);
+            }
+
+            expandNode(node) {
+                // When a node is clicked, we can expand it to show related concepts
+                // This simulates the branching of memories
+
+                // Find all directly connected nodes
+                const connectedLinks = this.links.filter(link =>
+                    link.source.id === node.id || link.target.id === node.id);
+
+                // Highlight the node and its connections
+                this.svg.selectAll('.node')
+                    .filter(d => d.id === node.id)
+                    .classed('expanded', true)
+                    .transition()
+                    .duration(300)
+                    .attr('r', d => d.radius * 1.5);
+
+                // Highlight all connected nodes
+                connectedLinks.forEach(link => {
+                    const connectedId = link.source.id === node.id ? link.target.id : link.source.id;
+
+                    this.svg.selectAll('.node')
+                        .filter(d => d.id === connectedId)
+                        .classed('connected', true)
+                        .transition()
+                        .duration(300)
+                        .attr('r', d => d.radius * 1.2);
+                })
+
+                // Highlight all the links
+                this.svg.selectAll('.link')
+                    .filter(d => d.source.id === node.id || d.target.id === node.id)
+                    .classed('expanded-link', true)
+                    .transition()
+                    .duration(300)
+                    .style('stroke-width', d => (d.strength || 1) * 3)
+                    .style('stroke-opacity', 0.8);
+
+                // Reset after a delay
+                setTimeout(() => {
+                    this.svg.selectAll('.node')
+                        .classed('expanded', false)
+                        .classed('connected', false)
+                        .transition()
+                        .duration(300)
+                        .attr('r', d => d.radius);
+
+                    this.svg.selectAll('.link')
+                        .classed('expanded-link', false)
+                        .transition()
+                        .duration(300)
+                        .style('stroke-width', d => d.strength ? d.strength * 2 : 2)
+                        .style('stroke-opacity', 0.3);
+                }, 3000);
+            }
+
+
+            tick() {
+                // Optimize tick function by adding boundary constraints and collision prevention
+                const link = this.svg.selectAll('.link');
+                const nodeGroup = this.svg.selectAll('.node-group');
+
+                // Add boundary constraints
+                this.nodes.forEach(d => {
+                    d.x = Math.max(d.radius, Math.min(this.width - d.radius, d.x));
+                    d.y = Math.max(d.radius, Math.min(this.height - d.radius, d.y));
+                });
+
+                link.attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                nodeGroup.attr('transform', d => `translate(${d.x},${d.y})`);
+            }
+
+            highlightConnections(node) {
+                const duration = 1500;
+                const selectedNode = this.svg.selectAll('.node').filter(d => d.id === node.id);
+                const connectedLinks = this.svg.selectAll('.link')
+                    .filter(d => d.source.id === node.id || d.target.id === node.id);
+
+                // Enhanced pulse animation for the selected node
+                selectedNode
+                    .transition()
+                    .duration(duration / 2)
+                    .attr('r', d => d.radius * 1.5)
+                    .transition()
+                    .duration(duration / 2)
+                    .attr('r', d => d.radius)
+                    .style('fill', 'var(--accent-purple)')
+                    .transition()
+                    .duration(duration / 2)
+                    .style('fill', 'var(--neuron-color)');
+
+                // Animate connected links
+                connectedLinks
+                    .transition()
+                    .duration(duration / 2)
+                    .style('stroke', 'var(--accent-purple)')
+                    .style('stroke-width', '3px')
+                    .style('stroke-opacity', '0.8')
+                    .transition()
+                    .duration(duration / 2)
+                    .style('stroke', 'var(--synapse-color)')
+                    .style('stroke-width', '2px')
+                    .style('stroke-opacity', '0.3');
+            }
+        }
+
+        // Initialize the memory network with enhanced interaction handling
+        const initMemoryNetwork = () => {
+            // Function implementation
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('brain-container');
+            const network = new MemoryNetwork(container);
+
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.5, 3])
+                .on('zoom', (event) => {
+                    network.svg.selectAll('g').attr('transform', event.transform);
+                });
+
+            network.svg.call(zoom);
+
+            // Update on window resize with debouncing
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    container.innerHTML = '';
+                    network.width = container.clientWidth;
+                    network.height = container.clientHeight;
+                    network.initialize();
+                }, 250);
+            });
+        });
+    </script>
+</body>
+</html>

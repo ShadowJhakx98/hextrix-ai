@@ -1,0 +1,369 @@
+--- START OF FILE enhanced-neural-memory-manager.html ---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Neural Memory Map</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            color: #fff; /* Ensure default text color is white for visibility */
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1; /* Ensure canvas is behind UI elements */
+        }
+
+        /* Toggle button styling */
+        #uiToggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200; /* Ensure toggle button is on top */
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Smooth transition */
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); /* Neon glow */
+        }
+
+        #uiToggle:hover {
+            background-color: rgba(0, 255, 255, 0.4); /* Brighter hover */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); /* Enhanced glow on hover */
+        }
+
+        /* UI Panel Container */
+        #uiPanel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100; /* Ensure UI panel is above canvas */
+            display: flex;
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1); /* Fluent slide animation */
+            pointer-events: auto; /* Make UI elements interactive */
+        }
+
+        #uiPanel.hidden {
+            opacity: 0;
+            pointer-events: none; /* Disable interaction when hidden */
+            transform: translateY(100%); /* Slide down to hide */
+        }
+
+        /* Left panel (controls) styling */
+        .controls {
+            position: relative; /* For absolute positioning of elements inside */
+            top: 20px;
+            left: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s ease-out; /* Fluent slide and fade */
+            backdrop-filter: blur(5px); /* Glass effect */
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); /* Neon box shadow */
+            max-width: 300px; /* Limit width of controls panel */
+        }
+
+        .controls.hidden {
+            transform: translateX(-120%); /* Slide controls to the left */
+            opacity: 0; /* Fade out when hidden */
+        }
+
+        /* Right panel (memory list) styling */
+        .memory-list {
+            position: relative; /* For positioning within UI Panel */
+            top: 20px;
+            margin-left: auto; /* Push to the right side */
+            margin-right: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 280px; /* Fixed width for memory list */
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s ease-out; /* Fluent slide and fade */
+            backdrop-filter: blur(5px); /* Glass effect */
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); /* Neon box shadow */
+        }
+
+        .memory-list.hidden {
+            transform: translateX(120%); /* Slide memory list to the right */
+            opacity: 0; /* Fade out when hidden */
+        }
+
+        button {
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s; /* Smooth button transitions */
+        }
+
+        button:hover {
+            background-color: rgba(0, 255, 255, 0.4); /* Brighter hover */
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3); /* Hover glow */
+        }
+
+        .memory-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s; /* Smooth memory item transitions */
+            backdrop-filter: blur(3px); /* Slight glass effect on memory items */
+        }
+
+        .memory-item:hover {
+            background-color: rgba(0, 255, 255, 0.1); /* Hover background */
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); /* Hover glow */
+            transform: translateX(3px); /* Slight movement on hover for feedback */
+        }
+
+        textarea {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            height: 80px;
+            resize: vertical;
+        }
+
+        input[type="text"] {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            margin-bottom: 5px;
+        }
+
+        .views {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        .view-btn {
+            flex: 1;
+            font-size: 12px;
+            padding: 5px;
+        }
+
+        h3 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            padding-bottom: 5px;
+        }
+
+        .keyword-tag {
+            display: inline-block;
+            background-color: rgba(0, 200, 200, 0.3);
+            padding: 3px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .input-controls {
+            margin-top: 10px;
+        }
+
+        /* Glow effect for active elements */
+        .active-glow {
+            animation: glow 1.5s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="brainCanvas"></canvas>
+
+    <!-- UI Toggle Button -->
+    <div id="uiToggle">UI</div>
+
+    <!-- UI Panel Container -->
+    <div id="uiPanel">
+        <div class="controls">
+            <h3>Enhanced Neural Memory Map</h3>
+            <div>
+                <input type="text" id="memoryInput" placeholder="Enter a single memory...">
+                <button id="addMemory">Add Memory</button>
+            </div>
+            <div class="input-controls">
+                <textarea id="conversationInput" placeholder="Enter conversation text to extract important keywords..."></textarea>
+                <button id="processConversation">Process Conversation</button>
+            </div>
+            <div class="views">
+                <button class="view-btn" id="viewFull">Full View</button>
+                <button class="view-btn" id="viewSide">Side View</button>
+                <button class="view-btn" id="viewTop">Top View</button>
+            </div>
+        </div>
+
+        <div class="memory-list">
+            <h3>Memory Network</h3>
+            <div id="memories"></div>
+        </div>
+    </div>
+
+    <script>
+        // Neuron class (Keep as is)
+        class Neuron { constructor(x, y, z) { this.x = x; this.y = y; this.z = z; this.active = false; this.activeIntensity = 0; this.relatedNeurons = []; } activate() { this.active = true; this.activeIntensity = 1; } update() { if (this.active) { this.activeIntensity = Math.max(0, this.activeIntensity - 0.02); if (this.activeIntensity <= 0) { this.active = false; } } } draw() { const scale = 1000 / (1000 + this.z); const x = brainCenter.x + this.x * scale; const y = brainCenter.y + this.y * scale; ctx.beginPath(); ctx.arc(x, y, 3 * scale, 0, Math.PI * 2); if (this.active) { ctx.fillStyle = `rgba(0, 255, 255, ${this.activeIntensity})`; } else { ctx.fillStyle = 'rgba(0, 255, 255, 0.3)'; } ctx.fill(); } }
+
+        // Connection class (Keep as is)
+        class Connection { constructor(fromId, toId, strength) { this.fromId = fromId; this.toId = toId; this.strength = strength; this.active = false; this.activeIntensity = 0; } activate() { this.active = true; this.activeIntensity = 1; } update() { if (this.active) { this.activeIntensity = Math.max(0, this.activeIntensity - 0.02); if (this.activeIntensity <= 0) { this.active = false; } } } draw() { const from = neurons[this.fromId]; const to = neurons[this.toId]; const scale1 = 1000 / (1000 + from.z); const x1 = brainCenter.x + from.x * scale1; const y1 = brainCenter.y + from.y * scale1; const scale2 = 1000 / (1000 + to.z); const x2 = brainCenter.x + to.x * scale2; const y2 = brainCenter.y + to.y * scale2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); if (this.active) { ctx.strokeStyle = `rgba(0, 255, 255, ${this.activeIntensity * 0.7})`; ctx.lineWidth = 2; } else { ctx.strokeStyle = `rgba(0, 255, 255, ${this.strength * 0.3})`; ctx.lineWidth = 1; } ctx.stroke(); } }
+
+        // Canvas setup (Keep as is)
+        const canvas = document.getElementById('brainCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to full window size (Keep as is)
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Global variables (Keep as is)
+        let neurons = [];
+        let connections = [];
+        let memories = [];
+        let currentView = 'full';
+        let rotation = 0;
+        let uiVisible = true; // Track UI visibility, initially visible
+
+        // Brain structure parameters (Keep as is)
+        const brainCenter = { x: canvas.width / 2, y: canvas.height / 2, z: 0 };
+        const brainSize = { x: canvas.width * 0.25, y: canvas.height * 0.25, z: canvas.width * 0.25 };
+
+        // Brain mesh data (Keep as is)
+        const brainMesh = {
+            vertices: [],
+            edges: [],
+            loaded: false
+        };
+
+        // Generate brain mesh (Keep as is)
+        function generateBrainMesh() { /* ... (Rest of generateBrainMesh function - unchanged) ... */ }
+
+        // Update brain mesh (Keep as is)
+        function updateBrainMesh() { /* ... (Rest of updateBrainMesh function - unchanged) ... */ }
+
+        // Draw brain mesh (Keep as is)
+        function drawBrainMesh() { /* ... (Rest of drawBrainMesh function - unchanged) ... */ }
+
+        // Memory class (Keep as is)
+        class Memory { constructor(text) { this.text = text; this.neuronIds = []; this.connectionIds = []; this.lastAccessed = Date.now(); this.keywords = []; } addNeuron(id) { this.neuronIds.push(id); } addConnection(id) { this.connectionIds.push(id); } activate() { this.lastAccessed = Date.now(); this.neuronIds.forEach(id => { neurons[id].activate(); }); this.connectionIds.forEach(id => { connections[id].activate(); }); const numEdgesToActivate = 5 + Math.floor(Math.random() * 5); const indices = []; for (let i = 0; i < numEdgesToActivate; i++) { const idx = Math.floor(Math.random() * brainMesh.edges.length); indices.push(idx); } indices.forEach((idx, i) => { setTimeout(() => { brainMesh.edges[idx].active = true; brainMesh.edges[idx].activeIntensity = 1; setTimeout(() => { brainMesh.edges[idx].active = false; }, 800 + Math.random() * 500); }, i * 50); }); } }
+
+        // Initialize brain structure (Keep as is)
+        function initBrain() { /* ... (Rest of initBrain function - unchanged) ... */ }
+
+        // Update memory list in UI (Modified for glow effect)
+        function updateMemoryList() {
+            const memoryList = document.getElementById('memories');
+            memoryList.innerHTML = '';
+
+            // Sort memories by most recently accessed
+            const sortedMemories = [...memories].sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+            sortedMemories.forEach(memory => {
+                const memoryDiv = document.createElement('div');
+                memoryDiv.className = 'memory-item';
+                memoryDiv.innerText = memory.text;
+                memoryDiv.addEventListener('click', () => {
+                    memory.activate();
+
+                    // Add temporary glow effect to indicate activation
+                    memoryDiv.classList.add('active-glow');
+                    setTimeout(() => {
+                        memoryDiv.classList.remove('active-glow');
+                    }, 1500);
+                });
+                memoryList.appendChild(memoryDiv);
+            });
+        }
+
+        // Toggle UI visibility (Modified to toggle 'hidden' class on UI elements)
+        function toggleUI() {
+            const uiPanel = document.getElementById('uiPanel');
+            uiVisible = !uiVisible;
+
+            if (uiVisible) {
+                uiPanel.classList.remove('hidden');
+                document.querySelector('.controls').classList.remove('hidden');
+                document.querySelector('.memory-list').classList.remove('hidden');
+            } else {
+                uiPanel.classList.add('hidden');
+                document.querySelector('.controls').classList.add('hidden');
+                document.querySelector('.memory-list').classList.add('hidden');
+            }
+        }
+
+        // Animation loop (Keep as is)
+        function animate() { /* ... (Rest of animate function - unchanged) ... */ }
+
+        // Handle window resize (Keep as is)
+        window.addEventListener('resize', () => { /* ... (Rest of resize listener - unchanged) ... */ });
+
+        // Create a new memory (Keep as is)
+        function createMemory(text) { /* ... (Rest of createMemory function - unchanged) ... */ }
+
+        // Process conversation to extract keywords (Keep as is)
+        function processConversation(text) { /* ... (Rest of processConversation function - unchanged) ... */ }
+
+        // Initialize (Modified to add toggle button listener)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize brain (Keep as is)
+            initBrain();
+
+            // Add event listeners for memory controls (Keep as is)
+            document.getElementById('addMemory').addEventListener('click', () => { /* ... (Rest of addMemory listener - unchanged) ... */ });
+            document.getElementById('memoryInput').addEventListener('keypress', (e) => { /* ... (Rest of memoryInput keypress listener - unchanged) ... */ });
+            document.getElementById('processConversation').addEventListener('click', () => { /* ... (Rest of processConversation listener - unchanged) ... */ });
+
+            // Add event listeners for view buttons (Keep as is)
+            document.getElementById('viewFull').addEventListener('click', () => { /* ... (Rest of viewFull listener - unchanged) ... */ });
+            document.getElementById('viewSide').addEventListener('click', () => { /* ... (Rest of viewSide listener - unchanged) ... */ });
+            document.getElementById('viewTop').addEventListener('click', () => { /* ... (Rest of viewTop listener - unchanged) ... */ });
+
+            // Start animation loop (Keep as is)
+            animate();
+
+            // UI Toggle Button Listener (New)
+            document.getElementById('uiToggle').addEventListener('click', toggleUI);
+        });
+    </script>
+</body>
+</html>

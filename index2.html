@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hextrix AI Interface</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-dark: #121212;
+            --secondary-dark: #1e1e1e;
+            --accent-blue: #4a7bff;
+            --accent-purple: #9c27b0;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --glow-blue: 0 0 10px rgba(74, 123, 255, 0.7);
+            --glow-purple: 0 0 10px rgba(156, 39, 176, 0.7);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--primary-dark);
+            color: var(--text-primary);
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/assets/hex-pattern.svg'); /* Corrected path to assets */
+            opacity: 0.2;
+            z-index: -1;
+        }
+
+        .page-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: var(--glow-blue);
+            letter-spacing: 2px;
+            position: relative;
+        }
+
+        h1::after {
+            content: '';
+            display: block;
+            width: 100px;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            margin: 10px auto 0;
+            border-radius: 3px;
+        }
+
+        .container {
+            background-color: var(--secondary-dark);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(74, 123, 255, 0.1);
+            backdrop-filter: blur(4px);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(74, 123, 255, 0.2);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: var(--glow-blue);
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        select {
+            appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%23b3b3b3" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px 10px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: all 0.6s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(74, 123, 255, 0.3), 0 3px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        #response {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            white-space: pre-wrap;
+            display: none;
+            border-left: 3px solid var(--accent-purple);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        .loading {
+            text-align: center;
+            display: none;
+            margin-top: 25px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid var(--accent-blue);
+            border-right: 4px solid var(--accent-purple);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1.5s linear infinite;
+            margin: 0 auto;
+            box-shadow: var(--glow-blue);
+        }
+
+        .loading p {
+            margin-top: 15px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Floating hexagons */
+        .hex {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            opacity: 0.1;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            z-index: -1;
+            animation: float-hex 15s infinite linear;
+        }
+
+        .hex:nth-child(1) {
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+            animation-duration: 20s;
+        }
+
+        .hex:nth-child(2) {
+            top: 20%;
+            right: 15%;
+            width: 80px;
+            height: 80px;
+            animation-delay: 2s;
+            animation-duration: 25s;
+        }
+
+        .hex:nth-child(3) {
+            bottom: 15%;
+            left: 20%;
+            width: 40px;
+            height: 40px;
+            animation-delay: 5s;
+            animation-duration: 18s;
+        }
+
+        .hex:nth-child(4) {
+            bottom: 25%;
+            right: 10%;
+            width: 70px;
+            height: 70px;
+            animation-delay: 7s;
+            animation-duration: 22s;
+        }
+
+        @keyframes float-hex {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+            100% { transform: translateY(0) rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .page-wrapper {
+                padding: 20px 15px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .hex {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            button {
+                padding: 12px 10px;
+            }
+        }
+
+        .message-metadata {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(74, 123, 255, 0.05);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .emotion-state, .self-awareness {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid var(--accent-blue);
+        }
+
+        .emotion-state strong, .self-awareness strong {
+            color: var(--accent-blue);
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="hex"></div>
+    <div class="hex"></div>
+    <div class="hex"></div>
+    <div class="hex"></div>
+
+    <div class="page-wrapper">
+    <h1>Hextrix AI Interface</h1>
+    <div class="nav-links">
+        <a href="memory.html" class="memory-link">View Memory Network</a>
+        <a href="enhanced-neural-memory-map.html" class="memory-link">Enhanced Memory Map</a> <!-- Added link to enhanced memory map -->
+    </div>
+
+    <div class="container">
+        <div class="form-group">
+            <label for="model-type">Select AI Model:</label>
+            <select id="model-type">
+                <option value="llama">Llama 3.3 (Default)</option>
+                <option value="gemini">Gemini 2.0</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="user-input">Enter your question or prompt:</label>
+            <textarea id="user-input" placeholder="What would you like to ask?"></textarea>
+        </div>
+
+        <button id="submit-btn">Submit</button>
+
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+
+        <div id="conversation-container">
+            <!-- Conversation history will be displayed here -->
+        </div>
+    </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const submitBtn = document.getElementById('submit-btn');
+            const userInput = document.getElementById('user-input');
+            const modelType = document.getElementById('model-type');
+            const conversationContainer = document.getElementById('conversation-container');
+            const loadingDiv = document.querySelector('.loading');
+
+            // Set the API endpoint to the Cloudflare Worker URL
+            const apiUrl = '/'; // Corrected to root path for worker
+
+            // Generate a unique session ID for this browser session
+            const sessionId = localStorage.getItem('hextrix_session_id') ||
+                              `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            localStorage.setItem('hextrix_session_id', sessionId);
+
+            // Load conversation history from localStorage if available
+            let conversationHistory = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+
+            // Display existing conversation history if available
+            displayConversationHistory();
+
+            submitBtn.addEventListener('click', async () => {
+                const input = userInput.value.trim();
+                if (!input) {
+                    alert('Please enter a question or prompt');
+                    return;
+                }
+
+                // Add user message to UI
+                addMessageToUI('user', input);
+
+                // Clear input field
+                userInput.value = '';
+
+                // Show loading indicator
+                loadingDiv.style.display = 'block';
+
+                try {
+                    const response = await fetch(`${apiUrl}?sessionId=${sessionId}&model=${modelType.value}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            input: input
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    // Hide loading indicator
+                    loadingDiv.style.display = 'none';
+
+                    if (data.error) {
+                        addMessageToUI('error', data.error);
+                        return;
+                    }
+
+                    // Add assistant message to UI with metadata - removed metadata for now as not provided by worker
+                    addMessageToUI('assistant', data.response);
+
+                    // Update conversation history if provided
+                    if (data.history) {
+                        conversationHistory = data.history;
+                        localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingDiv.style.display = 'none';
+                    addMessageToUI('error', 'An error occurred while processing your request.');
+                }
+            });
+
+            function addMessageToUI(role, content, metadata = null) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}-message`;
+
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'role-label';
+                roleLabel.textContent = role === 'user' ? 'You' :
+                                       role === 'assistant' ? 'Hextrix AI' : 'Error';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+
+                messageDiv.appendChild(roleLabel);
+                messageDiv.appendChild(contentDiv);
+
+                // Add metadata if available - Removed metadata block for now
+                conversationContainer.appendChild(messageDiv);
+
+                // Scroll to the bottom of the conversation
+                conversationContainer.scrollTop = conversationContainer.scrollHeight;
+
+                // Add to local conversation history
+                if (role !== 'error') {
+                    const historyItem = { role, content };
+                    // Only add to local history if not already in the server history
+                    if (!conversationHistory.some(item =>
+                        item.role === historyItem.role && item.content === historyItem.content)) {
+                        conversationHistory.push(historyItem);
+                        localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    }
+                }
+            }
+
+            function displayConversationHistory() {
+                if (conversationHistory.length > 0) {
+                    conversationHistory.forEach(item => {
+                        addMessageToUI(item.role, item.content);
+                    });
+                }
+            }
+        });
+    </script>
+<style>
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+}
+</style>
+</body>
+</html>

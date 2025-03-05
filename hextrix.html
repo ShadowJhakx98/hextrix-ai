@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Neural Memory Map</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+        canvas {
+            display: block;
+            position: fixed; /* Changed to fixed to cover whole viewport and stay behind */
+            top: 0;
+            left: 0;
+            z-index: 1; /* Keep z-index low to stay behind UI */
+        }
+
+        /* Toggle button styling */
+        #uiToggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        #uiToggle:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Fullscreen button styling */
+        #fullscreenToggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        #fullscreenToggle:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        /* UI Panel Container */
+        #uiPanel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100;
+            display: flex;
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: auto; /* IMPORTANT: Changed to auto so UI elements are interactive */
+        }
+
+        #uiPanel.hidden {
+            opacity: 0;
+            transform: translateY(100%);
+            pointer-events: none; /* Keep pointer-events none when hidden */
+        }
+
+        /* Left panel (controls) styling */
+        .controls {
+            position: relative;
+            top: 20px;
+            left: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+            pointer-events: auto; /* Make this clickable */
+            max-width: 300px;
+        }
+
+        .controls.hidden {
+            transform: translateX(-120%);
+        }
+
+        /* Right panel (memory list) styling */
+        .memory-list {
+            position: relative;
+            top: 20px;
+            margin-left: auto;
+            margin-right: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 280px;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+            pointer-events: auto; /* Make this clickable */
+        }
+
+        .memory-list.hidden {
+            transform: translateX(120%);
+        }
+
+        button, #clearSearch, #clearMemories, #exportMemories, #importMemories {
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        button:hover, #clearSearch:hover, #clearMemories:hover, #exportMemories:hover, #importMemories:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        .memory-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(3px);
+            display: flex;
+            justify-content: space-between; /* Align text to left, button to right */
+            align-items: center; /* Vertically center items */
+        }
+
+        .memory-item:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            transform: translateX(3px);
+        }
+
+        .memory-item span {
+            flex-grow: 1; /* Let text take available space */
+            margin-right: 10px; /* Add some spacing between text and button */
+        }
+
+        .memory-item button.delete-memory {
+            background-color: rgba(255, 0, 0, 0.3); /* Reddish for delete */
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+
+        .memory-item button.delete-memory:hover {
+            background-color: rgba(255, 0, 0, 0.5);
+            box-shadow: none; /* Remove glow on hover for delete button */
+        }
+
+
+        textarea {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            height: 80px;
+            resize: vertical;
+        }
+
+        input[type="text"], #memorySearch {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            margin-bottom: 5px;
+        }
+
+        .views {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        .view-btn {
+            flex: 1;
+            font-size: 12px;
+            padding: 5px;
+        }
+
+        h3 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            padding-bottom: 5px;
+        }
+
+        .keyword-tag {
+            display: inline-block;
+            background-color: rgba(0, 200, 200, 0.3);
+            padding: 3px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .input-controls {
+            margin-top: 10px;
+        }
+
+        /* Glow effect for active elements */
+        .active-glow {
+            animation: glow 1.5s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="brainCanvas"></canvas>
+
+    <!-- UI Toggle Button -->
+    <div id="uiToggle">UI</div>
+    <div id="fullscreenToggle">Full</div>
+
+    <!-- UI Panel Container -->
+    <div id="uiPanel">
+        <div class="controls">
+            <h3>Hextrix Enhanced Neural Memory Map</h3>
+            <div>
+                <input type="text" id="memoryInput" placeholder="Enter a single memory...">
+                <button id="addMemory">Add Memory</button>
+            </div>
+            <div class="input-controls">
+                <textarea id="conversationInput" placeholder="Enter conversation text to extract important keywords..."></textarea>
+                <button id="processConversation">Process Conversation</button>
+            </div>
+            <div class="views">
+                <button class="view-btn" id="viewFull">Full View</button>
+                <button class="view-btn" id="viewSide">Side View</button>
+                <button class="view-btn" id="viewTop">Top View</button>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="controls">
+                <h3>AI Interaction</h3>
+                <div class="form-group">
+                    <label for="model-type">Select AI Model:</label>
+                    <select id="model-type">
+                        <option value="llama">Llama 3.3 (Default)</option>
+                        <option value="gemini">Gemini 2.0</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="user-input">Enter your question or prompt:</label>
+                    <textarea id="user-input" placeholder="What would you like to ask?"></textarea>
+                </div>
+
+                <button id="submit-btn">Submit</button>
+
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Processing your request...</p>
+                </div>
+            </div>
+            <div id="conversation-container">
+                <!-- Conversation history will be displayed here -->
+            </div>
+        </div>
+        <div class="memory-list">
+            <h3>Memory Network</h3>
+            <input type="text" id="memorySearch" placeholder="Search memories...">
+            <button id="clearSearch">Clear Search</button>
+            <div id="memories"></div>
+            <button id="clearMemories">Clear All Memories</button>
+            <button id="exportMemories">Export Memories</button>
+            <button id="importMemories">Import Memories</button>
+        </div>
+    </div>
+
+    <script>
+                document.addEventListener('DOMContentLoaded', () => {
+            const submitBtn = document.getElementById('submit-btn');
+            const userInput = document.getElementById('user-input');
+            const modelType = document.getElementById('model-type');
+            const conversationContainer = document.getElementById('conversation-container');
+            const loadingDiv = document.querySelector('.loading');
+
+            // Set the API endpoint to the Cloudflare Worker URL
+            const apiUrl = window.location.origin; // Use origin to work with both dev and production
+
+            // Generate a unique session ID for this browser session
+            const sessionId = localStorage.getItem('hextrix_session_id') ||
+                              `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            localStorage.setItem('hextrix_session_id', sessionId);
+
+            // Load conversation history from localStorage if available
+            let conversationHistory = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+
+            // Display existing conversation history if available
+            displayConversationHistory();
+
+            submitBtn.addEventListener('click', async () => {
+                const input = userInput.value.trim();
+                if (!input) {
+                    alert('Please enter a question or prompt');
+                    return;
+                }
+
+                // Add user message to UI
+                addMessageToUI('user', input);
+
+                // Clear input field
+                userInput.value = '';
+
+                // Show loading indicator
+                loadingDiv.style.display = 'block';
+
+                try {
+                    const response = await fetch(`${apiUrl}?sessionId=${sessionId}&model=${modelType.value}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            input: input
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    // Hide loading indicator
+                    loadingDiv.style.display = 'none';
+
+                    if (data.error) {
+                        addMessageToUI('error', data.error);
+                        return;
+                    }
+
+                    // Add assistant message to UI with metadata - removed metadata for now as not provided by worker
+                    addMessageToUI('assistant', data.response);
+
+                    // Update conversation history if provided
+                    if (data.history) {
+                        conversationHistory = data.history;
+                        localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingDiv.style.display = 'none';
+                    addMessageToUI('error', 'An error occurred while processing your request.');
+                }
+            });
+
+            function addMessageToUI(role, content, metadata = null) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}-message`;
+
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'role-label';
+                roleLabel.textContent = role === 'user' ? 'You' :
+                                       role === 'assistant' ? 'Hextrix AI' : 'Error';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+
+                messageDiv.appendChild(roleLabel);
+                messageDiv.appendChild(contentDiv);
+
+                // Add metadata if available - Removed metadata block for now
+                conversationContainer.appendChild(messageDiv);
+
+                // Scroll to the bottom of the conversation
+                conversationContainer.scrollTop = conversationContainer.scrollHeight;
+
+                // Add to local conversation history
+                if (role !== 'error') {
+                    const historyItem = { role, content };
+                    // Only add to local history if not already in the server history
+                    if (!conversationHistory.some(item =>
+                        item.role === historyItem.role && item.content === historyItem.content)) {
+                        conversationHistory.push(historyItem);
+                        localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    }
+                }
+            }
+
+            function displayConversationHistory() {
+                if (conversationHistory.length > 0) {
+                    conversationHistory.forEach(item => {
+                        addMessageToUI(item.role, item.content);
+                    });
+                }
+            }
+        });
+        // Neuron class
+        class Neuron {
+            constructor(x, y, z) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.active = false;
+                this.activeIntensity = 0;
+                this.relatedNeurons = [];
+            }
+
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+
+            draw() {
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + this.z);
+                const x = brainCenter.x + this.x * scale;
+                const y = brainCenter.y + this.y * scale;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 3 * scale, 0, Math.PI * 2);
+
+                if (this.active) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${this.activeIntensity})`;
+                } else {
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                }
+
+                ctx.fill();
+            }
+        }
+
+        // Connection class
+        class Connection {
+            constructor(fromId, toId, strength) {
+                this.fromId = fromId;
+                this.toId = toId;
+                this.strength = strength;
+                this.active = false;
+                this.activeIntensity = 0;
+            }
+
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+
+            draw() {
+                const from = neurons[this.fromId];
+                const to = neurons[this.toId];
+
+                // Project 3D coordinates to 2D
+                const scale1 = 1000 / (1000 + from.z);
+                const x1 = brainCenter.x + from.x * scale1;
+                const y1 = brainCenter.y + from.y * scale1;
+
+                const scale2 = 1000 / (1000 + to.z);
+                const x2 = brainCenter.x + to.x * scale2;
+                const y2 = brainCenter.y + to.y * scale2;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+
+                if (this.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.activeIntensity * 0.7})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.strength * 0.3})`;
+                    ctx.lineWidth = 1;
+                }
+
+                ctx.stroke();
+            }
+        }
+
+        // Canvas setup (keep as is)
+        const canvas = document.getElementById('brainCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to full window size (keep as is)
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Global variables (keep and add new ones)
+        let neurons = [];
+        let connections = [];
+        let memories = [];
+        let currentView = 'full';
+        let rotation = 0;
+        let uiVisible = true;
+        let isFullscreen = false; // Track fullscreen state
+        let searchQuery = ''; // Track memory search query
+
+        // Brain structure parameters (keep as is)
+        const brainCenter = { x: canvas.width / 2, y: canvas.height / 2, z: 0 };
+        const brainSize = { x: canvas.width * 0.25, y: canvas.height * 0.25, z: canvas.width * 0.25 };
+
+        // Brain mesh data (keep as is)
+        const brainMesh = {
+            vertices: [],
+            edges: [],
+            loaded: false
+        };
+
+        // Generate brain mesh
+        function generateBrainMesh() {
+            // Create a more complex brain-like structure
+
+            // Basic brain shape parameters
+            const centerX = 0;
+            const centerY = 0;
+            const centerZ = 0;
+            const brainWidth = brainSize.x * 0.8;
+            const brainHeight = brainSize.y * 0.8;
+            const brainDepth = brainSize.z * 0.8;
+
+            // Generate vertices
+            const vertexCount = 800;
+            brainMesh.vertices = [];
+
+            // First create the core brain shape
+            for (let i = 0; i < vertexCount * 0.7; i++) {
+                // Generate points in brain-like shape
+                // Using a modified ellipsoid with some random variation
+
+                // Start with angles that cover the ellipsoid
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+
+                // Add some variations to make it more brain-like
+                const r1 = 0.7 + Math.random() * 0.3; // Radius variation
+
+                // Cerebral cortex wrinkles and folds
+                const wrinkle = 0.15 * Math.sin(theta * 8) * Math.sin(phi * 6);
+
+                // Basic ellipsoid shape with wrinkles
+                let x = centerX + brainWidth * r1 * Math.sin(phi) * Math.cos(theta) * (1 + wrinkle);
+                let y = centerY + brainHeight * r1 * Math.sin(phi) * Math.sin(theta) * (1 + wrinkle);
+                let z = centerZ + brainDepth * r1 * Math.cos(phi) * (1 + wrinkle);
+
+                // Add some asymmetry for a more realistic brain
+                if (x > 0) {
+                    x *= 1.05;
+                    y *= 0.95;
+                }
+
+                // Add some more detail to the bottom part (cerebellum and brain stem area)
+                if (z < 0 && y > brainHeight * 0.2) {
+                    z *= 1.2;
+                    y *= 0.9;
+                }
+
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 1 + Math.random() * 2,
+                    connCount: 0
+                });
+            }
+
+            // Add some additional points in the surrounding network
+            for (let i = 0; i < vertexCount * 0.3; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const r = 1.1 + Math.random() * 0.4; // Outside the main brain
+
+                const x = centerX + brainWidth * r * Math.sin(phi) * Math.cos(theta);
+                const y = centerY + brainHeight * r * Math.sin(phi) * Math.sin(theta);
+                const z = centerZ + brainDepth * r * Math.cos(phi);
+
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 0.5 + Math.random(),
+                    connCount: 0
+                });
+            }
+
+            // Create connections between vertices
+            brainMesh.edges = [];
+
+            // Connect points based on proximity
+            for (let i = 0; i < brainMesh.vertices.length; i++) {
+                const v1 = brainMesh.vertices[i];
+
+                // Each vertex will connect to several nearby vertices
+                const maxConnections = 3 + Math.floor(Math.random() * 3);
+                let connections = 0;
+
+                for (let j = 0; j < brainMesh.vertices.length && connections < maxConnections; j++) {
+                    if (i === j) continue;
+
+                    const v2 = brainMesh.vertices[j];
+
+                    // Calculate distance between vertices
+                    const dx = v1.x - v2.x;
+                    const dy = v1.y - v2.y;
+                    const dz = v1.z - v2.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    // Connect if within range and not too many connections
+                    if (distance < brainWidth * 0.2 && v2.connCount < 6) {
+                        brainMesh.edges.push({
+                            from: i,
+                            to: j,
+                            active: false,
+                            activeIntensity: 0
+                        });
+
+                        connections++;
+                        v1.connCount++;
+                        v2.connCount++;
+                    }
+                }
+            }
+
+            brainMesh.loaded = true;
+        }
+
+        // Update brain mesh
+        function updateBrainMesh() {
+            if (!brainMesh.loaded) return;
+
+            // Update edge activations
+            brainMesh.edges.forEach(edge => {
+                if (edge.active) {
+                    edge.activeIntensity = Math.max(0, edge.activeIntensity - 0.02);
+                    if (edge.activeIntensity <= 0) {
+                        edge.active = false;
+                    }
+                }
+            });
+
+            // Randomly activate some edges
+            if (Math.random() < 0.1) {
+                const numToActivate = 1 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < numToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    brainMesh.edges[idx].active = true;
+                    brainMesh.edges[idx].activeIntensity = 1;
+                }
+            }
+        }
+
+        // Draw brain mesh
+        function drawBrainMesh() {
+            if (!brainMesh.loaded) return;
+
+            // Rotate brain mesh gradually
+            rotation += 0.002;
+
+            // Apply rotation to vertices for display
+            const rotatedVertices = brainMesh.vertices.map(v => {
+                // Only rotate in full view mode
+                if (currentView !== 'full') {
+                    return {
+                        x: v.x,
+                        y: v.y,
+                        z: v.z,
+                        size: v.size
+                    };
+                }
+
+                // Apply rotation around Y axis
+                const cosR = Math.cos(rotation);
+                const sinR = Math.sin(rotation);
+
+                return {
+                    x: v.x * cosR + v.z * sinR,
+                    y: v.y,
+                    z: v.z * cosR - v.x * sinR,
+                    size: v.size
+                };
+            });
+
+            // Draw edges
+            brainMesh.edges.forEach(edge => {
+                const v1 = rotatedVertices[edge.from];
+                const v2 = rotatedVertices[edge.to];
+
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + v1.z);
+                const x1 = brainCenter.x + v1.x * scale;
+                const y1 = brainCenter.y + v1.y * scale;
+
+                const scale2 = 1000 / (1000 + v2.z);
+                const x2 = brainCenter.x + v2.x * scale2;
+                const y2 = brainCenter.y + v2.y * scale2;
+
+                // Draw connection
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+
+                if (edge.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${edge.activeIntensity * 0.5})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+                    ctx.lineWidth = 1;
+                }
+
+                ctx.stroke();
+            });
+
+            // Draw vertices
+            rotatedVertices.forEach(v => {
+                const scale = 1000 / (1000 + v.z);
+                const x = brainCenter.x + v.x * scale;
+                const y = brainCenter.y + v.y * scale;
+
+                ctx.beginPath();
+                ctx.arc(x, y, v.size * scale, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                ctx.fill();
+            });
+        }
+
+        // Memory class
+        class Memory {
+            constructor(text) {
+                this.text = text;
+                this.neuronIds = [];
+                this.connectionIds = [];
+                this.lastAccessed = Date.now();
+                this.keywords = [];
+            }
+
+            addNeuron(id) {
+                this.neuronIds.push(id);
+            }
+
+            addConnection(id) {
+                this.connectionIds.push(id);
+            }
+
+            activate() {
+                this.lastAccessed = Date.now();
+
+                // Activate neurons
+                this.neuronIds.forEach(id => {
+                    neurons[id].activate();
+                });
+
+                // Activate connections
+                this.connectionIds.forEach(id => {
+                    connections[id].activate();
+                });
+
+                // Activate brain mesh edges near memory neurons
+                const numEdgesToActivate = 5 + Math.floor(Math.random() * 5);
+                const indices = [];
+
+                // Select random edges to activate
+                for (let i = 0; i < numEdgesToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    indices.push(idx);
+                }
+
+                // Activate them with slight delays
+                indices.forEach((idx, i) => {
+                    setTimeout(() => {
+                        brainMesh.edges[idx].active = true;
+                        brainMesh.edges[idx].activeIntensity = 1;
+
+                        setTimeout(() => {
+                            brainMesh.edges[idx].active = false;
+                        }, 800 + Math.random() * 500);
+                    }, i * 50);
+                });
+            }
+        }
+
+        // Initialize brain structure
+        function initBrain() {
+            // Generate brain mesh
+            generateBrainMesh();
+
+            // Create additional neurons for memories
+            for (let i = 0; i < 100; i++) {
+                // Random position within brain
+                let x, y, z;
+                do {
+                    x = (Math.random() * 2 - 1) * brainSize.x;
+                    y = (Math.random() * 2 - 1) * brainSize.y;
+                    z = (Math.random() * 2 - 1) * brainSize.z;
+                } while ((x*x)/(brainSize.x*brainSize.x) +
+                         (y*y)/(brainSize.y*brainSize.y) +
+                         (z*z)/(brainSize.z*brainSize.z) > 0.7);
+
+                neurons.push(new Neuron(x, y, z));
+            }
+
+            // Create initial connections between neurons
+            for (let i = 0; i < neurons.length; i++) {
+                // Connect to nearby neurons
+                for (let j = 0; j < neurons.length; j++) {
+                    if (i !== j) {
+                        const dx = neurons[i].x - neurons[j].x;
+                        const dy = neurons[i].y - neurons[j].y;
+                        const dz = neurons[i].z - neurons[j].z;
+                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                        if (distance < brainSize.x * 0.3) {
+                            const strength = 0.5 + Math.random() * 0.5;
+                            const connectionId = connections.length;
+                            connections.push(new Connection(i, j, strength));
+                            neurons[i].relatedNeurons.push(j);
+                            neurons[j].relatedNeurons.push(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update memory list in UI
+        function updateMemoryList() {
+            const memoryList = document.getElementById('memories');
+            memoryList.innerHTML = '';
+
+            // Sort memories by most recently accessed
+            const sortedMemories = [...memories].sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+            sortedMemories.forEach(memory => {
+                const memoryDiv = document.createElement('div');
+                memoryDiv.className = 'memory-item';
+                memoryDiv.innerText = memory.text;
+                memoryDiv.addEventListener('click', () => {
+                    memory.activate();
+                });
+                memoryList.appendChild(memoryDiv);
+            });
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        }
+
+        // Toggle UI visibility (Modified to toggle 'hidden' class on UI elements)
+        function toggleUI() {
+            const uiPanel = document.getElementById('uiPanel');
+            uiVisible = !uiVisible;
+
+            if (uiVisible) {
+                uiPanel.classList.remove('hidden');
+                document.querySelector('.controls').classList.remove('hidden');
+                document.querySelector('.memory-list').classList.remove('hidden');
+            } else {
+                uiPanel.classList.add('hidden');
+                document.querySelector('.controls').classList.add('hidden');
+                document.querySelector('.memory-list').classList.add('hidden');
+            }
+        }
+
+        // Toggle Fullscreen
+        function toggleFullscreen() {
+            if (!isFullscreen) {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
+                    document.documentElement.mozRequestFullScreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+                    document.documentElement.webkitRequestFullscreen();
+                } else if (document.documentElement.msRequestFullscreen) { /* IE/Edge */
+                    document.documentElement.msRequestFullscreen();
+                }
+                isFullscreen = true;
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE/Edge */
+                    document.msExitFullscreen();
+                }
+                isFullscreen = false;
+            }
+        }
+
+            // Simulate random thoughts - activate random neurons and connections
+            if (Math.random() < 0.02) {
+                // Activate a random neuron
+                if (neurons.length > 0) {
+                    const neuronIndex = Math.floor(Math.random() * neurons.length);
+                    neurons[neuronIndex].activate();
+                }
+            }
+            if (Math.random() < 0.01 && connections.length > 0) {
+                const connectionIndex = Math.floor(Math.random() * connections.length);
+                connections[connectionIndex].activate();
+            }
+
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Simulate random thoughts - activate random neurons and connections
+            if (Math.random() < 0.02) {
+                // Activate a random neuron
+                if (neurons.length > 0) {
+                    const neuronIndex = Math.floor(Math.random() * neurons.length);
+                    neurons[neuronIndex].activate();
+                }
+            }
+            if (Math.random() < 0.01 && connections.length > 0) {
+                const connectionIndex = Math.floor(Math.random() * connections.length);
+                connections[connectionIndex].activate();
+            }
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        }
+
+        // Handle window resize (keep as is)
+        window.addEventListener('resize', () => { /* ... */ });
+
+        // Create a new memory (keep as is)
+        function createMemory(text) { /* ... */ }
+
+        // Process conversation to extract keywords (keep as is)
+        function processConversation(text) { /* ... */ }
+
+
+        // Save state to localStorage (keep as is)
+        function saveState() { /* ... */ }
+
+        // Load state from localStorage (keep as is)
+        function loadState() { /* ... */ }
+
+        // Export memories to JSON file (keep as is)
+        function exportMemories() { /* ... */ }
+
+        // Import memories from JSON file (keep as is)
+        function importMemories() { /* ... */ }
+
+        // Clear search function (keep as is)
+        function clearSearch() { /* ... */ }
+
+        // Clear all memories function (keep as is)
+        function clearAllMemories() { /* ... */ }
+
+
+        // Keyboard shortcuts (keep and add search focus)
+        document.addEventListener('keydown', function(event) { /* ... */ });
+
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize brain
+            initBrain();
+            loadState(); // Load saved state on startup
+            updateMemoryList(); // Initial memory list update
+
+            // Save state every minute
+            setInterval(saveState, 60000);
+
+
+            // Add event listeners for buttons
+            document.getElementById('uiToggle').addEventListener('click', toggleUI);
+            document.getElementById('fullscreenToggle').addEventListener('click', toggleFullscreen);
+            document.getElementById('addMemory').addEventListener('click', () => {
+                const input = document.getElementById('memoryInput');
+                if (input.value.trim()) {
+                    createMemory(input.value.trim());
+                    input.value = '';
+                }
+            });
+
+            document.getElementById('memoryInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    createMemory(e.target.value.trim());
+                    e.target.value = '';
+                }
+            });
+
+            document.getElementById('processConversation').addEventListener('click', () => {
+                const input = document.getElementById('conversationInput');
+                const text = input.value.trim();
+                if (text) {
+                    processConversation(text);
+                    input.value = '';
+                }
+            });
+
+            document.getElementById('viewFull').addEventListener('click', () => { currentView = 'full'; animate(); });
+            document.getElementById('viewSide').addEventListener('click', () => { currentView = 'side'; animate(); });
+            document.getElementById('viewTop').addEventListener('click', () => { currentView = 'top'; animate(); });
+            document.getElementById('memorySearch').addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                updateMemoryList();
+            });
+            document.getElementById('clearSearch').addEventListener('click', clearSearch);
+            document.getElementById('clearMemories').addEventListener('click', clearAllMemories);
+            document.getElementById('exportMemories').addEventListener('click', exportMemories);
+            document.getElementById('importMemories').addEventListener('click', importMemories);
+
+
+            // Start animation loop
+            animate();
+        });
+    </script>
+<style>
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+}
+</style>
+</body>
+</html>

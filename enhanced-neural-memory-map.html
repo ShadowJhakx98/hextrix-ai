@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Neural Memory Map</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+        }
+        button {
+            background-color: #0ff;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #00cccc;
+        }
+        .memory-list {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 280px;
+        }
+        .memory-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .memory-item:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .views {
+            display: flex;
+            margin-top: 10px;
+        }
+        .view-btn {
+            flex: 1;
+            font-size: 12px;
+            padding: 5px;
+        }
+        h3 {
+            margin-top: 0;
+        }
+        .keyword-tag {
+            display: inline-block;
+            background-color: rgba(0, 200, 200, 0.3);
+            padding: 3px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .input-controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="brainCanvas"></canvas>
+    
+    <div class="controls">
+        <h3>Enhanced Neural Memory Map</h3>
+        <div>
+            <input type="text" id="memoryInput" placeholder="Enter a single memory...">
+            <button id="addMemory">Add Memory</button>
+        </div>
+        <div class="input-controls">
+            <textarea id="conversationInput" placeholder="Enter conversation text to extract important keywords..."></textarea>
+            <button id="processConversation">Process Conversation</button>
+        </div>
+        <div class="views">
+            <button class="view-btn" id="viewFull">Full View</button>
+            <button class="view-btn" id="viewSide">Side View</button>
+            <button class="view-btn" id="viewTop">Top View</button>
+        </div>
+    </div>
+    
+    <div class="memory-list">
+        <h3>Memory Network</h3>
+        <div id="memories"></div>
+    </div>
+
+    <script>
+        // Neuron class
+        class Neuron {
+            constructor(x, y, z) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.active = false;
+                this.activeIntensity = 0;
+                this.relatedNeurons = [];
+            }
+            
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+            
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+            
+            draw() {
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + this.z);
+                const x = brainCenter.x + this.x * scale;
+                const y = brainCenter.y + this.y * scale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 3 * scale, 0, Math.PI * 2);
+                
+                if (this.active) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${this.activeIntensity})`;
+                } else {
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                }
+                
+                ctx.fill();
+            }
+        }
+        
+        // Connection class
+        class Connection {
+            constructor(fromId, toId, strength) {
+                this.fromId = fromId;
+                this.toId = toId;
+                this.strength = strength;
+                this.active = false;
+                this.activeIntensity = 0;
+            }
+            
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+            
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+            
+            draw() {
+                const from = neurons[this.fromId];
+                const to = neurons[this.toId];
+                
+                // Project 3D coordinates to 2D
+                const scale1 = 1000 / (1000 + from.z);
+                const x1 = brainCenter.x + from.x * scale1;
+                const y1 = brainCenter.y + from.y * scale1;
+                
+                const scale2 = 1000 / (1000 + to.z);
+                const x2 = brainCenter.x + to.x * scale2;
+                const y2 = brainCenter.y + to.y * scale2;
+                
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                
+                if (this.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.activeIntensity * 0.7})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.strength * 0.3})`;
+                    ctx.lineWidth = 1;
+                }
+                
+                ctx.stroke();
+            }
+        }
+
+        // Canvas setup
+        const canvas = document.getElementById('brainCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas to full window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Global variables
+        let neurons = [];
+        let connections = [];
+        let memories = [];
+        let currentView = 'full'; // 'full', 'side', 'top'
+        let rotation = 0;
+        
+        // Brain structure parameters
+        const brainCenter = { x: canvas.width / 2, y: canvas.height / 2, z: 0 };
+        const brainSize = { x: canvas.width * 0.25, y: canvas.height * 0.25, z: canvas.width * 0.25 };
+        
+        // Brain mesh data
+        const brainMesh = {
+            vertices: [],
+            edges: [],
+            loaded: false
+        };
+        
+        // Generate brain mesh
+        function generateBrainMesh() {
+            // Create a more complex brain-like structure
+            
+            // Basic brain shape parameters
+            const centerX = 0;
+            const centerY = 0;
+            const centerZ = 0;
+            const brainWidth = brainSize.x * 0.8;
+            const brainHeight = brainSize.y * 0.8;
+            const brainDepth = brainSize.z * 0.8;
+            
+            // Generate vertices
+            const vertexCount = 800;
+            brainMesh.vertices = [];
+            
+            // First create the core brain shape
+            for (let i = 0; i < vertexCount * 0.7; i++) {
+                // Generate points in brain-like shape
+                // Using a modified ellipsoid with some random variation
+                
+                // Start with angles that cover the ellipsoid
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                // Add some variations to make it more brain-like
+                const r1 = 0.7 + Math.random() * 0.3; // Radius variation
+                
+                // Cerebral cortex wrinkles and folds
+                const wrinkle = 0.15 * Math.sin(theta * 8) * Math.sin(phi * 6);
+                
+                // Basic ellipsoid shape with wrinkles
+                let x = centerX + brainWidth * r1 * Math.sin(phi) * Math.cos(theta) * (1 + wrinkle);
+                let y = centerY + brainHeight * r1 * Math.sin(phi) * Math.sin(theta) * (1 + wrinkle);
+                let z = centerZ + brainDepth * r1 * Math.cos(phi) * (1 + wrinkle);
+                
+                // Add some asymmetry for a more realistic brain
+                if (x > 0) {
+                    x *= 1.05;
+                    y *= 0.95;
+                }
+                
+                // Add some more detail to the bottom part (cerebellum and brain stem area)
+                if (z < 0 && y > brainHeight * 0.2) {
+                    z *= 1.2;
+                    y *= 0.9;
+                }
+                
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 1 + Math.random() * 2,
+                    connCount: 0
+                });
+            }
+            
+            // Add some additional points in the surrounding network
+            for (let i = 0; i < vertexCount * 0.3; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const r = 1.1 + Math.random() * 0.4; // Outside the main brain
+                
+                const x = centerX + brainWidth * r * Math.sin(phi) * Math.cos(theta);
+                const y = centerY + brainHeight * r * Math.sin(phi) * Math.sin(theta);
+                const z = centerZ + brainDepth * r * Math.cos(phi);
+                
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 0.5 + Math.random(),
+                    connCount: 0
+                });
+            }
+            
+            // Create connections between vertices
+            brainMesh.edges = [];
+            
+            // Connect points based on proximity
+            for (let i = 0; i < brainMesh.vertices.length; i++) {
+                const v1 = brainMesh.vertices[i];
+                
+                // Each vertex will connect to several nearby vertices
+                const maxConnections = 3 + Math.floor(Math.random() * 3);
+                let connections = 0;
+                
+                for (let j = 0; j < brainMesh.vertices.length && connections < maxConnections; j++) {
+                    if (i === j) continue;
+                    
+                    const v2 = brainMesh.vertices[j];
+                    
+                    // Calculate distance between vertices
+                    const dx = v1.x - v2.x;
+                    const dy = v1.y - v2.y;
+                    const dz = v1.z - v2.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    
+                    // Connect if within range and not too many connections
+                    if (distance < brainWidth * 0.2 && v2.connCount < 6) {
+                        brainMesh.edges.push({
+                            from: i,
+                            to: j,
+                            active: false,
+                            activeIntensity: 0
+                        });
+                        
+                        connections++;
+                        v1.connCount++;
+                        v2.connCount++;
+                    }
+                }
+            }
+            
+            brainMesh.loaded = true;
+        }
+        
+        // Update brain mesh
+        function updateBrainMesh() {
+            if (!brainMesh.loaded) return;
+            
+            // Update edge activations
+            brainMesh.edges.forEach(edge => {
+                if (edge.active) {
+                    edge.activeIntensity = Math.max(0, edge.activeIntensity - 0.02);
+                    if (edge.activeIntensity <= 0) {
+                        edge.active = false;
+                    }
+                }
+            });
+            
+            // Randomly activate some edges
+            if (Math.random() < 0.1) {
+                const numToActivate = 1 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < numToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    brainMesh.edges[idx].active = true;
+                    brainMesh.edges[idx].activeIntensity = 1;
+                }
+            }
+        }
+        
+        // Draw brain mesh
+        function drawBrainMesh() {
+            if (!brainMesh.loaded) return;
+            
+            // Rotate brain mesh gradually
+            rotation += 0.002;
+            
+            // Apply rotation to vertices for display
+            const rotatedVertices = brainMesh.vertices.map(v => {
+                // Only rotate in full view mode
+                if (currentView !== 'full') {
+                    return {
+                        x: v.x,
+                        y: v.y,
+                        z: v.z,
+                        size: v.size
+                    };
+                }
+                
+                // Apply rotation around Y axis
+                const cosR = Math.cos(rotation);
+                const sinR = Math.sin(rotation);
+                
+                return {
+                    x: v.x * cosR + v.z * sinR,
+                    y: v.y,
+                    z: v.z * cosR - v.x * sinR,
+                    size: v.size
+                };
+            });
+            
+            // Draw edges
+            brainMesh.edges.forEach(edge => {
+                const v1 = rotatedVertices[edge.from];
+                const v2 = rotatedVertices[edge.to];
+                
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + v1.z);
+                const x1 = brainCenter.x + v1.x * scale;
+                const y1 = brainCenter.y + v1.y * scale;
+                
+                const scale2 = 1000 / (1000 + v2.z);
+                const x2 = brainCenter.x + v2.x * scale2;
+                const y2 = brainCenter.y + v2.y * scale2;
+                
+                // Draw connection
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                
+                if (edge.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${edge.activeIntensity * 0.5})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+                    ctx.lineWidth = 1;
+                }
+                
+                ctx.stroke();
+            });
+            
+            // Draw vertices
+            rotatedVertices.forEach(v => {
+                const scale = 1000 / (1000 + v.z);
+                const x = brainCenter.x + v.x * scale;
+                const y = brainCenter.y + v.y * scale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, v.size * scale, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                ctx.fill();
+            });
+        }
+        
+        // Memory class
+        class Memory {
+            constructor(text) {
+                this.text = text;
+                this.neuronIds = [];
+                this.connectionIds = [];
+                this.lastAccessed = Date.now();
+                this.keywords = [];
+            }
+            
+            addNeuron(id) {
+                this.neuronIds.push(id);
+            }
+            
+            addConnection(id) {
+                this.connectionIds.push(id);
+            }
+            
+            activate() {
+                this.lastAccessed = Date.now();
+                
+                // Activate neurons
+                this.neuronIds.forEach(id => {
+                    neurons[id].activate();
+                });
+                
+                // Activate connections
+                this.connectionIds.forEach(id => {
+                    connections[id].activate();
+                });
+                
+                // Activate brain mesh edges near memory neurons
+                const numEdgesToActivate = 5 + Math.floor(Math.random() * 5);
+                const indices = [];
+                
+                // Select random edges to activate
+                for (let i = 0; i < numEdgesToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    indices.push(idx);
+                }
+                
+                // Activate them with slight delays
+                indices.forEach((idx, i) => {
+                    setTimeout(() => {
+                        brainMesh.edges[idx].active = true;
+                        brainMesh.edges[idx].activeIntensity = 1;
+                        
+                        setTimeout(() => {
+                            brainMesh.edges[idx].active = false;
+                        }, 800 + Math.random() * 500);
+                    }, i * 50);
+                });
+            }
+        }
+        
+        // Initialize brain structure
+        function initBrain() {
+            // Generate brain mesh
+            generateBrainMesh();
+            
+            // Create additional neurons for memories
+            for (let i = 0; i < 100; i++) {
+                // Random position within brain
+                let x, y, z;
+                do {
+                    x = (Math.random() * 2 - 1) * brainSize.x;
+                    y = (Math.random() * 2 - 1) * brainSize.y;
+                    z = (Math.random() * 2 - 1) * brainSize.z;
+                } while ((x*x)/(brainSize.x*brainSize.x) + 
+                         (y*y)/(brainSize.y*brainSize.y) + 
+                         (z*z)/(brainSize.z*brainSize.z) > 0.7);
+                
+                neurons.push(new Neuron(x, y, z));
+            }
+            
+            // Create initial connections between neurons
+            for (let i = 0; i < neurons.length; i++) {
+                // Connect to nearby neurons
+                for (let j = 0; j < neurons.length; j++) {
+                    if (i !== j) {
+                        const dx = neurons[i].x - neurons[j].x;
+                        const dy = neurons[i].y - neurons[j].y;
+                        const dz = neurons[i].z - neurons[j].z;
+                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        
+                        if (distance < brainSize.x * 0.3) {
+                            const strength = 0.5 + Math.random() * 0.5;
+                            const connectionId = connections.length;
+                            connections.push(new Connection(i, j, strength));
+                            neurons[i].relatedNeurons.push(j);
+                            neurons[j].relatedNeurons.push(i);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update memory list in UI
+        function updateMemoryList() {
+            const memoryList = document.getElementById('memories');
+            memoryList.innerHTML = '';
+            
+            // Sort memories by most recently accessed
+            const sortedMemories = [...memories].sort((a, b) => b.lastAccessed - a.lastAccessed);
+            
+            sortedMemories.forEach(memory => {
+                const memoryDiv = document.createElement('div');
+                memoryDiv.className = 'memory-item';
+                memoryDiv.innerText = memory.text;
+                memoryDiv.addEventListener('click', () => {
+                    memory.activate();
+                });
+                memoryList.appendChild(memoryDiv);
+            });
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+            
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+            
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            brainCenter.x = canvas.width / 2;
+            brainCenter.y = canvas.height / 2;
+        });
+        
+        // Create a new memory
+        function createMemory(text) {
+            const memory = new Memory(text);
+            
+            // Create neurons for this memory
+            const neuronCount = 3 + Math.floor(Math.random() * 3);
+            
+            for (let i = 0; i < neuronCount; i++) {
+                // Create a new neuron at a random position
+                let x, y, z;
+                do {
+                    x = (Math.random() * 2 - 1) * brainSize.x * 0.7;
+                    y = (Math.random() * 2 - 1) * brainSize.y * 0.7;
+                    z = (Math.random() * 2 - 1) * brainSize.z * 0.7;
+                } while ((x*x)/(brainSize.x*brainSize.x) + 
+                         (y*y)/(brainSize.y*brainSize.y) + 
+                         (z*z)/(brainSize.z*brainSize.z) > 0.5);
+                
+                const neuronId = neurons.length;
+                neurons.push(new Neuron(x, y, z));
+                memory.addNeuron(neuronId);
+                
+                // Connect to other neurons in this memory
+                for (let j = 0; j < i; j++) {
+                    const targetId = memory.neuronIds[j];
+                    const connectionId = connections.length;
+                    const strength = 0.7 + Math.random() * 0.3; // Strong connection within memory
+                    connections.push(new Connection(neuronId, targetId, strength));
+                    memory.addConnection(connectionId);
+                    neurons[neuronId].relatedNeurons.push(targetId);
+                    neurons[targetId].relatedNeurons.push(neuronId);
+                }
+                
+                // Connect to some random neurons from other memories
+                if (memories.length > 0 && Math.random() < 0.7) {
+                    // Find a related memory
+                    const relatedMemory = memories[Math.floor(Math.random() * memories.length)];
+                    
+                    // Connect to a random neuron in the related memory
+                    if (relatedMemory.neuronIds.length > 0) {
+                        const targetId = relatedMemory.neuronIds[Math.floor(Math.random() * relatedMemory.neuronIds.length)];
+                        const connectionId = connections.length;
+                        const strength = 0.3 + Math.random() * 0.3; // Weaker connection to other memories
+                        connections.push(new Connection(neuronId, targetId, strength));
+                        memory.addConnection(connectionId);
+                        neurons[neuronId].relatedNeurons.push(targetId);
+                        neurons[targetId].relatedNeurons.push(neuronId);
+                    }
+                }
+            }
+            
+            memories.push(memory);
+            updateMemoryList();
+            
+            // Activate the new memory
+            memory.activate();
+            
+            return memory;
+        }
+        
+        // Process conversation to extract keywords
+        function processConversation(text) {
+            // Simple keyword extraction (in a real app, this would use NLP)
+            const words = text.toLowerCase().split(/\s+/);
+            const commonWords = new Set(['the', 'and', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'about', 'as', 'of', 'is', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'but', 'or', 'if', 'then', 'else', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now']);
+            
+            // Filter out common words and short words
+            const keywords = words.filter(word => {
+                return word.length > 3 && !commonWords.has(word) && /^[a-z]+$/.test(word);
+            });
+            
+            // Count occurrences
+            const wordCount = {};
+            keywords.forEach(word => {
+                wordCount[word] = (wordCount[word] || 0) + 1;
+            });
+            
+            // Sort by frequency
+            const sortedWords = Object.keys(wordCount).sort((a, b) => wordCount[b] - wordCount[a]);
+            
+            // Take top keywords
+            const topKeywords = sortedWords.slice(0, 5);
+            
+            // Create a memory for each keyword
+            topKeywords.forEach(keyword => {
+                createMemory(keyword);
+            });
+            
+            return topKeywords;
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize brain
+            initBrain();
+            
+            // Add event listeners
+            document.getElementById('addMemory').addEventListener('click', () => {
+                const input = document.getElementById('memoryInput');
+                if (input.value.trim()) {
+                    createMemory(input.value.trim());
+                    input.value = '';
+                }
+            });
+            
+            document.getElementById('memoryInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    createMemory(e.target.value.trim());
+                    e.target.value = '';
+                }
+            });
+            
+            // Add event listener for conversation processing
+            document.getElementById('processConversation').addEventListener('click', () => {
+                const input = document.getElementById('conversationInput');
+                const text = input.value.trim();
+                if (text) {
+                    processConversation(text);
+                    input.value = '';
+                }
+            });
+            
+            // Add event listeners for view buttons
+            document.getElementById('viewFull').addEventListener('click', () => {
+                currentView = 'full';
+            });
+            
+            document.getElementById('viewSide').addEventListener('click', () => {
+                currentView = 'side';
+            });
+            
+            document.getElementById('viewTop').addEventListener('click', () => {
+                currentView = 'top';
+            });
+            
+            // Start animation loop
+            animate();
+        });
+    </script>
+</body>
+</html>
