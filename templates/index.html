@@ -1,0 +1,2938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Neural Memory Map</title>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r161/three.min.js"></script> -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+        canvas {
+            display: block;
+            position: fixed; /* Changed to fixed to cover whole viewport and stay behind */
+            top: 0;
+            left: 0;
+            z-index: 1; /* Keep z-index low to stay behind UI */
+        }
+
+        /* Toggle button styling */
+        #hudToggle {
+                    position: absolute;
+                    top: 20px;
+                    left: 80px; /* Positioned after #uiToggle */
+                    z-index: 200;
+                    background-color: rgba(0, 255, 255, 0.2);
+                    color: #0ff;
+                    border: 1px solid #0ff;
+                    border-radius: 50%;
+                    width: 50px;
+                    height: 50px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+                }
+                #hudToggle:hover {
+                    background-color: rgba(0, 255, 255, 0.4);
+                    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+                }
+        #uiToggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        #uiToggle:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Fullscreen button styling */
+        #fullscreenToggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        #fullscreenToggle:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        .chat-toggle-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: rgba(0, 255, 255, 0.3);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .chat-toggle-button:hover {
+            transform: scale(1.1);
+            background-color: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .chat-toggle-button.active {
+            transform: rotate(45deg);
+        }
+
+        .chat-toggle-button i {
+            font-size: 24px;
+        }
+        /* UI Panel Container */
+        #uiPanel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100;
+            display: flex;
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: auto; /* IMPORTANT: Changed to auto so UI elements are interactive */
+        }
+
+        #uiPanel.hidden {
+            opacity: 0;
+            transform: translateY(100%);
+            pointer-events: none; /* Keep pointer-events none when hidden */
+        }
+
+        /* Left panel (controls) styling */
+        .controls {
+            position: relative;
+            top: 20px;
+            left: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+            pointer-events: auto; /* Make this clickable */
+            max-width: 300px;
+        }
+
+        .controls.hidden {
+            transform: translateX(-120%);
+        }
+
+        /* Right panel (memory list) styling */
+        .memory-list {
+            position: relative;
+            top: 20px;
+            margin-left: auto;
+            margin-right: 20px;
+            color: #0ff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 280px;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+            pointer-events: auto; /* Make this clickable */
+        }
+
+        .memory-list.hidden {
+            transform: translateX(120%);
+        }
+
+        button, #clearSearch, #clearMemories, #exportMemories, #importMemories {
+            background-color: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        button:hover, #clearSearch:hover, #clearMemories:hover, #exportMemories:hover, #importMemories:hover {
+            background-color: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        .memory-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(3px);
+            display: flex;
+            justify-content: space-between; /* Align text to left, button to right */
+            align-items: center; /* Vertically center items */
+        }
+
+        .memory-item:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            transform: translateX(3px);
+        }
+
+        .memory-item span {
+            flex-grow: 1; /* Let text take available space */
+            margin-right: 10px; /* Add some spacing between text and button */
+        }
+
+        .memory-item button.delete-memory {
+            background-color: rgba(255, 0, 0, 0.3); /* Reddish for delete */
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+
+        .memory-item button.delete-memory:hover {
+            background-color: rgba(255, 0, 0, 0.5);
+            box-shadow: none; /* Remove glow on hover for delete button */
+        }
+
+
+        textarea {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            height: 80px;
+            resize: vertical;
+        }
+
+        input[type="text"], #memorySearch {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #0ff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 8px;
+            width: calc(100% - 18px);
+            margin-bottom: 5px;
+        }
+
+        .views {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        .view-btn {
+            flex: 1;
+            font-size: 12px;
+            padding: 5px;
+        }
+
+        h3 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            padding-bottom: 5px;
+        }
+
+        .keyword-tag {
+            display: inline-block;
+            background-color: rgba(0, 200, 200, 0.3);
+            padding: 3px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .input-controls {
+            margin-top: 10px;
+        }
+        #conversation-container {
+            flex: 1; /* Let conversation container take remaining vertical space in right panel */
+            overflow-y: auto; /* Enable vertical scrolling for conversation history */
+            min-height: 200px; /* Minimum height for conversation container */
+            background-color: rgba(0, 0, 0, 0.5); /* Example background for conversation area */
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px; /* Add some space above conversation container */
+        }
+        /* Glow effect for active elements */
+        .active-glow {
+            animation: glow 1.5s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+            }
+        }
+                /* New HUD Panel styles */
+        .hud-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 150; /* Above #uiPanel (z-index: 100) but below toggle buttons (z-index: 200) */
+            background-color: #011027;
+        }
+        .hud-panel.active {
+            display: block;
+        }
+
+        /* HUD-specific styles */
+        #hud-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: 1fr 2fr 1fr;
+            gap: 10px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .panel {
+            border: 1px solid #2a9cd0;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: rgba(0, 20, 40, 0.7);
+            position: relative;
+            box-shadow: 0 0 10px rgba(0, 180, 255, 0.5);
+            overflow: hidden;
+        }
+        .conversation-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 0;
+            background-color: rgba(0, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            transition: height 0.3s ease-in-out;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .conversation-panel.active {
+            height: 70vh;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .panel-title {
+            color: #0ff;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .panel-toggle {
+            width: 40px;
+            height: 5px;
+            background-color: rgba(0, 255, 255, 0.5);
+            border-radius: 5px;
+            margin: 0 auto;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .panel-toggle:hover {
+            background-color: rgba(0, 255, 255, 0.8);
+            width: 50px;
+        }
+
+        .panel-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .conversation-history {
+            flex: 2;
+            overflow-y: auto;
+            padding: 15px;
+            border-right: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .media-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+        }
+
+        .video-container {
+            flex: 1;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .audio-visualizer {
+            height: 100px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .waveform {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+            padding: 0 10px;
+        }
+
+        .waveform-bar {
+            width: 3px;
+            background-color: #0ff;
+            border-radius: 3px;
+            transition: height 0.1s ease;
+        }
+
+        .conversation-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .user-message {
+            background-color: rgba(45, 50, 80, 0.5);
+            border-left: 3px solid #9370DB;
+        }
+
+        .ai-message {
+            background-color: rgba(20, 40, 60, 0.5);
+            border-left: 3px solid #0ff;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .message-content {
+            color: white;
+            line-height: 1.4;
+        }
+
+        .input-container {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .message-input {
+            flex: 1;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            color: white;
+            padding: 10px;
+            margin-right: 10px;
+        }
+
+        .send-button {
+            background-color: rgba(0, 255, 255, 0.3);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 0 15px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .send-button:hover {
+            background-color: rgba(0, 255, 255, 0.5);
+        }
+
+        .control-buttons {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 15px 15px;
+        }
+
+        .control-button {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            color: white;
+            border-radius: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-button:hover {
+            background-color: rgba(0, 255, 255, 0.2);
+        }
+
+        .control-button.active {
+            background-color: rgba(0, 255, 255, 0.3);
+            border-color: rgba(0, 255, 255, 0.8);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Scrollbar styling */
+        .conversation-history::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .conversation-history::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 255, 255, 0.3);
+            border-radius: 20px;
+        }
+    </style>
+
+    <!-- <script type="module" src="hextrix-female-model-ui.js"></script> -->
+
+    <script>
+        class MemoryNetwork {
+            constructor() {
+                this.nodes = [];
+                this.links = [];
+                this.nodeMap = new Map();
+                this.categories = new Map();
+                this.initialize();
+            }
+
+            initialize() {
+                console.log("MemoryNetwork: initialize called"); // ADDED LOG
+                this.loadMemories();
+            }
+
+            loadMemories() {
+                console.log("Loading memories..."); // Keep this log
+                try {
+                    const history = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+                    console.log("Conversation history loaded from localStorage:", history); // ADD THIS LOG
+                    const keywords = this.extractKeywords(history);
+                    console.log("Keywords extracted:", keywords); // ADD THIS LOG
+                    this.createMemoryNetwork(keywords);
+                    this.updateVisualization();
+                } catch (error) {
+                    console.error("Error in loadMemories:", error); // ADD ERROR LOG
+                }
+            }
+
+            extractKeywords(history) {
+                const keywords = new Set();
+                history.forEach(msg => {
+                    const extractedWords = this.extractWordsFromMessage(msg);
+                    extractedWords.forEach(word => keywords.add(word));
+                });
+                return Array.from(keywords).slice(0, 50);
+            }
+
+            extractKeywordsFromMessages(messages) {
+                const keywords = new Set();
+                messages.forEach(msg => {
+                    const extractedWords = this.extractWordsFromMessage(msg);
+                    extractedWords.forEach(word => keywords.add(word));
+                });
+                return Array.from(keywords);
+            }
+
+            extractWordsFromMessage(msg) {
+                const stopwords = ['about', 'after', 'again', 'could', 'every', 'first', 'found', 'great', 'house', 'large',
+                                  'learn', 'never', 'other', 'place', 'point', 'right', 'small', 'sound', 'still', 'study',
+                                  'their', 'there', 'these', 'thing', 'think', 'three', 'water', 'where', 'which', 'world',
+                                  'would', 'write', 'should', 'because', 'between', 'through', 'during', 'before', 'after'];
+
+                return msg.content
+                    .toLowerCase()
+                    .split(/\W+/)
+                    .filter(word => word.length > 3)
+                    .filter(word => !stopwords.includes(word));
+            }
+
+            createMemoryNetwork(keywords) {
+                console.log("createMemoryNetwork started"); // ADD LOG at the START
+                // Clear existing node map and nodes
+                this.nodeMap.clear();
+                this.nodes = [];
+
+                // Create neurons and nodes
+                try { // ADD try...catch INSIDE forEach loop
+                    keywords.forEach((word, index) => {
+                        try { // Inner try...catch for individual keyword processing
+                            const category = this.categorizeWord(word);
+                            const node = {
+                                id: `node${index}`,
+                                label: word,
+                                radius: 5 + Math.random() * 3,
+                                category: category,
+                                strength: 1,
+                                createdAt: Date.now()
+                            };
+                            this.nodeMap.set(word, node);
+                            this.nodes.push(node);
+
+                            // Create a Neuron object for the canvas - position it randomly for now
+                            let x, y, z;
+                            do {
+                                x = (Math.random() * 2 - 1) * brainSize.x;
+                                y = (Math.random() * 2 - 1) * brainSize.y;
+                                z = (Math.random() * 2 - 1) * brainSize.z;
+                            } while ((x*x)/(brainSize.x*brainSize.x) +
+                                     (y*y)/(brainSize.y*brainSize.y) +
+                                     (z*z)/(brainSize.z*brainSize.z) > 0.7);
+
+                                     neurons.push(new Neuron(x, y, z, word)); // Pass 'word' as label to Neuron constructor
+                                     node.neuronIndex = neurons.length - 1; 
+
+
+                        } catch (innerError) {
+                            console.error("Error processing keyword:", word, innerError); // Log error for each keyword
+                        }
+                    });
+
+                    // Create links (connections) - basic for now, improve later
+                    this.links = [];
+                    for (let i = 0; i < this.nodes.length; i++) {
+                        for (let j = i + 1; j < this.nodes.length; j++) {
+                            if (Math.random() < 0.1) { // Adjust probability as needed
+                                this.links.push({
+                                    source: this.nodes[i].id,
+                                    target: this.nodes[j].id,
+                                    strength: 0.3,
+                                    type: 'basic'
+                                });
+                            }
+                        }
+                    }
+
+                    console.log("Memory network created with", this.nodes.length, "nodes and", this.links.length, "links"); // Keep this log
+                } catch (outerError) {
+                    console.error("Error in createMemoryNetwork:", outerError); // ADD outer error log
+                }
+                console.log("createMemoryNetwork finished"); // ADD LOG at the END
+            }
+
+
+            categorizeWord(word) {
+                const firstChar = word.charAt(0).toLowerCase();
+
+                if ('aeiou'.includes(firstChar)) return 'concept';
+                if ('bcdfg'.includes(firstChar)) return 'entity';
+                if ('hjklm'.includes(firstChar)) return 'action';
+                if ('npqrs'.includes(firstChar)) return 'attribute';
+                return 'relation';
+            }
+
+            addNewMemories(newKeywords, timestamp) {
+                // Placeholder
+            }
+
+            updateMemories() {
+                // Placeholder
+            }
+
+            updateVisualization() {
+                console.log("MemoryNetwork: updateVisualization called");
+                // In the future, this will update the canvas based on this.nodes and this.links
+            }
+
+            animateNewNodes() {
+                // Placeholder
+            }
+
+            expandNode(node) {
+                // Placeholder
+            }
+
+            highlightConnections(node) {
+                // Placeholder
+            }
+
+            tick() {
+                // Placeholder - not directly needed for canvas, might adapt logic
+            }
+            
+        }
+        function updateForceLayout(nodes, links) {
+            if (!nodes || nodes.length === 0) return;
+
+            const forceStrength = 0.1; // Adjust force strength as needed
+            const gravityStrength = 0.01; // Gravity force to keep nodes centered
+            const collideStrength = 1; // Collision force strength
+            const linkDistance = brainSize.x * 0.2; // Desired link length
+
+            // Reset forces
+            nodes.forEach(node => {
+                node.vx = node.vx || 0; // Initialize velocity x
+                node.vy = node.vy || 0; // Initialize velocity y
+                node.ax = 0;            // Initialize acceleration x
+                node.ay = 0;            // Initialize acceleration y
+            });
+
+
+            // 1. Repulsion force (between all pairs of nodes)
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const node1 = nodes[i];
+                    const node2 = nodes[j];
+
+                    const dx = node2.x - node1.x;
+                    const dy = node2.y - node1.y;
+                    const dz = node2.z - node1.z;
+                    let distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    if (distance === 0) {
+                        distance = 1e-6; // Prevent division by zero
+                    }
+
+                    const repulsionForce = forceStrength * -1 / (distance * distance); // Inverse square repulsion
+
+                    node1.ax += repulsionForce * dx / distance;
+                    node1.ay += repulsionForce * dy / distance;
+                    node2.ax -= repulsionForce * dx / distance;
+                    node2.ay -= repulsionForce * dy / distance;
+                }
+            }
+
+            // 2. Attraction force (along links)
+            links.forEach(linkData => {
+                const sourceNode = nodes.find(node => node.id === linkData.source);
+                const targetNode = nodes.find(node => node.id === linkData.target);
+
+                if (sourceNode && targetNode) {
+                    const dx = targetNode.x - sourceNode.x;
+                    const dy = targetNode.y - sourceNode.y;
+                    const dz = targetNode.z - sourceNode.z;
+                    let distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    if (distance === 0) {
+                        distance = 1e-6; // Prevent division by zero
+                    }
+
+                    const attractionForce = forceStrength * (distance - linkDistance) / distance; // Hooke's Law attraction
+
+                    node1.ax += attractionForce * dx / distance;
+                    node1.ay += attractionForce * dy / distance;
+                    node2.ax -= attractionForce * dx / distance;
+                    node2.ay -= attractionForce * dy / distance;
+                }
+            });
+
+            // 3. Gravity force (towards center)
+            nodes.forEach(node => {
+                const dx = brainCenter.x - node.x;
+                const dy = brainCenter.y - node.y;
+                const dz = brainCenter.z - node.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                const gravityForce = gravityStrength;
+
+                node.ax += gravityForce * dx / distance;
+                node.ay += gravityForce * dy / distance;
+            });
+
+
+            // 4. Euler integration to update positions and velocities
+            nodes.forEach(node => {
+                node.vx = node.vx * 0.9 + node.ax; // Apply some damping (friction)
+                node.vy = node.vy * 0.9 + node.ay;
+
+                node.x += node.vx;
+                node.y += node.vy;
+
+                // Basic collision detection and resolution (very simplified)
+                for (let otherNode of nodes) {
+                    if (node !== otherNode) {
+                        let dx = node.x - otherNode.x;
+                        let dy = node.y - otherNode.y;
+                        let dz = node.z - otherNode.z;
+                        let distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        let minDist = node.radius + otherNode.radius + 10; // Minimum distance to avoid overlap
+
+                        if (distance < minDist) {
+                            let adjustFactor = (minDist - distance) * collideStrength * 0.5;
+                            node.x += adjustFactor * dx / distance;
+                            node.y += adjustFactor * dy / distance;
+                            otherNode.x -= adjustFactor * dx / distance;
+                            otherNode.y -= adjustFactor * dy / distance;
+                        }
+                    }
+                }
+            });
+        }
+        </script>
+    <!-- <script type="module" src="index.js"></script> -->
+
+</head>
+<body>
+    <canvas id="brainCanvas"></canvas>
+
+    <!-- UI Toggle Button -->
+    <div id="uiToggle">UI</div>
+    <div id="fullscreenToggle">Full</div>
+    <div id="hudToggle">HUD</div>
+    <div class="chat-toggle-button" id="chatToggleButton">
+        Chat
+    </div>
+
+    <!-- UI Panel Container -->
+    <div id="uiPanel">
+        <div class="controls left-panel"> <!-- Renamed and marked as left panel -->
+            <h3>Hextrix Controls</h3>
+            <div>
+                <input type="text" id="memoryInput" placeholder="Enter a single memory...">
+                <button id="addMemory">Add Memory</button>
+            </div>
+            <div class="input-controls">
+                <textarea id="conversationInput" placeholder="Enter conversation text to extract important keywords..."></textarea>
+                <button id="processConversation">Process Conversation</button>
+            </div>
+            <div class="views">
+                <button class="view-btn" id="viewFull">Full View</button>
+                <button class="view-btn" id="viewSide">Side View</button>
+                <button class="view-btn" id="viewTop">Top View</button>
+            </div>
+        </div>
+
+        <!-- Middle Panel for AI Interaction -->
+        <div class="controls middle-panel"> <!-- New middle panel -->
+            <h3>AI Interaction</h3>
+            <div class="form-group">
+                <label for="model-type">Select AI Model:</label>
+                <select id="model-type">
+                    <option value="llama">Llama 3.3 (Text)</option>
+                    <option value="gemini">Gemini 2.0 (Text)</option>
+                    <option value="gemma">Gemma 7B (Text)</option>
+                    <option value="sd_xl">SD XL (Image Gen)</option>
+                    <option value="sd_img2img">SD img2img (Image-to-Image)</option>
+                    <option value="flux">Flux (Image Gen)</option>
+                    <option value="whisper">Whisper (Speech-to-Text)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="user-input">Enter your question or prompt:</label>
+                <textarea id="user-input" placeholder="What would you like to ask?"></textarea>
+            </div>
+
+            <button id="submit-btn">Submit</button>
+
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Processing your request...</p>
+            </div>
+
+            <hr style="border-top: 1px solid rgba(0, 255, 255, 0.3); margin: 10px 0;">  <!-- Separator -->
+
+            <div class="form-group">
+                <label for="image-upload">Upload Image:</label>
+                <input type="file" id="image-upload" accept="image/*"> 
+            </div>
+            <div id="image-preview" style="max-width: 200px; max-height: 200px; margin-bottom: 10px;">
+                <!-- Image preview will be displayed here -->
+            </div>
+            <button id="vision-btn" disabled>Analyze Image</button> 
+        </div>
+        
+        <div class="right-panel"> <!-- Renamed and marked as right panel -->
+            <div class="memory-list">
+                <h3>Memory Network</h3>
+                <input type="text" id="memorySearch" placeholder="Search memories...">
+                <button id="clearSearch">Clear Search</button>
+                <div id="memories"></div>
+                <button id="clearMemories">Clear All Memories</button>
+                <button id="exportMemories">Export Memories</button>
+                <button id="importMemories">Import Memories</button>
+            </div>
+             <div id="conversation-container">
+                <!-- Conversation history will be displayed here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- New HUD Panel -->
+    <div id="hudPanel" class="hud-panel">
+        <div id="hud-container">
+            <div id="top-left" class="panel">
+                <div class="header">
+                    <div>SYSTEM STATUS</div>
+                    <div class="highlight">ACTIVATED</div>
+                </div>
+                <div class="stats">CPU USAGE</div>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" style="width: 57%;">
+                        <span class="progress-value">57%</span>
+                    </div>
+                </div>
+                <!-- Additional system status content -->
+            </div>
+            <div id="top-center" class="panel">
+                <!-- HUD Interface Technology content -->
+            </div>
+            <div id="top-right" class="panel">
+                <div class="header">
+                    <div>SECURITY METRICS</div>
+                    <div class="highlight">ONLINE</div>
+                </div>
+                <div class="chart-container" id="security-chart"></div>
+            </div>
+            <div id="data-visualization" class="panel">
+                <!-- Data Analysis content -->
+            </div>
+            <div id="globe-container" class="panel">
+                <div class="radial-menu" id="radial-menu">
+                    <div class="center-circle">CENTRAL<br>PROCESSING</div>
+                    <div class="scan-circle"></div>
+                    <div class="scan-circle" style="animation-delay: 1s;"></div>
+                    <div class="scan-circle" style="animation-delay: 2s;"></div>
+                    <div class="scan-circle" style="animation-delay: 3s;"></div>
+                </div>
+                <canvas id="globe"></canvas>
+            </div>
+            <div id="side-panel" class="panel">
+                <!-- Biometric Data content -->
+            </div>
+            <div id="bottom-left" class="panel">
+                <!-- Activity Log content -->
+            </div>
+            <div id="bottom-center" class="panel">
+                <!-- Global Synchronization content -->
+            </div>
+            <div id="bottom-right" class="panel">
+                <!-- System Alerts content -->
+            </div>
+        </div>
+        <div id="notifications">
+            <div class="notification">
+                <div>System update available: v3.5.3</div>
+                <div class="notification-time">12:45:22</div>
+            </div>
+            <div class="notification">
+                <div>New data packet received</div>
+                <div class="notification-time">12:43:05</div>
+            </div>
+        </div>
+        <div class="dot-grid" id="dot-grid"></div>
+        <div class="scan-line"></div>
+    </div>
+    <div class="conversation-panel">
+        <div class="panel-toggle-container">
+            <div class="panel-toggle"></div>
+        </div>
+        <div class="panel-header">
+            <div class="panel-title">Hextrix AI Conversation</div>
+            <div>
+                <button class="control-button" id="clearConversation">Clear</button>
+                <button class="control-button" id="exportConversation">Export</button>
+            </div>
+        </div>
+        <div class="panel-content">
+            <div class="conversation-history" id="conversationHistory">
+                <!-- Conversation messages will be populated here -->
+            </div>
+            <div class="media-section">
+                <div class="video-container" id="videoContainer">
+                    <video id="videoPreview" autoplay muted style="max-width: 100%; max-height: 100%;"></video>
+                </div>
+                <div class="audio-visualizer">
+                    <div class="waveform" id="waveform">
+                        <!-- Audio waveform bars will be generated here -->
+                    </div>
+                    <div id="speech-input-container"></div>
+                </div>
+                <div class="control-buttons">
+                    <button class="control-button" id="micToggle">Microphone</button>
+                    <button class="control-button" id="cameraToggle">Camera</button>
+                    <button class="control-button" id="screenShareToggle">Screen</button>
+                </div>
+            </div>
+        </div>
+        <div class="input-container">
+            <textarea class="message-input" id="messageInput" placeholder="Type your message here..."></textarea>
+            <button class="send-button" id="sendMessage">Send</button>
+        </div>
+    </div>
+
+    <script>
+            
+                document.addEventListener('DOMContentLoaded', () => {
+            const submitBtn = document.getElementById('submit-btn'); // Verify 'submit-btn' ID matches HTML button ID
+            const userInput = document.getElementById('user-input');
+            const modelType = document.getElementById('model-type');
+            const conversationContainer = document.getElementById('conversation-container');
+            const loadingDiv = document.querySelector('.loading');
+
+            // Set the API endpoint to the Cloudflare Worker URL
+            const apiUrl = 'http://127.0.0.1:5000'; // Flask server URL (default port 5000)
+
+            // Generate a unique session ID for this browser session
+            const sessionId = localStorage.getItem('hextrix_session_id') ||
+                              `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            localStorage.setItem('hextrix_session_id', sessionId);
+
+            // Load conversation history from localStorage if available
+            let conversationHistory = JSON.parse(localStorage.getItem('hextrix_conversation') || '[]');
+
+            // Display existing conversation history if available
+            displayConversationHistory();
+
+            submitBtn.addEventListener('click', async () => {
+                console.log("Submit button clicked!"); //
+                const input = userInput.value.trim();
+                if (!input) {
+                    alert('Please enter a question or prompt');
+                    return;
+                }
+
+                // Add user message to UI
+                addMessageToUI('user', input);
+
+                // Clear input field
+                userInput.value = '';
+
+                // Show loading indicator
+                loadingDiv.style.display = 'block';
+
+                try {
+                    const response = await fetch(`${apiUrl}/api/chat`, { // Changed API endpoint to /api/chat
+                        method: 'POST', // Changed to POST request
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ // Send message in JSON body
+                            message: input, // Use 'message' key to match Flask backend
+                            model: modelType.value // Send selected model type
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    // Hide loading indicator
+                    loadingDiv.style.display = 'none';
+
+                    if (data.error) {
+                        addMessageToUI('error', data.error);
+                        return;
+                    }
+
+                    // Add assistant message to UI with metadata - adjust to Flask response format
+                    addMessageToUI('assistant', data.response); // Assuming Flask returns response in 'response' field
+
+                    // Conversation history is now managed by Flask backend and memory store, 
+                    // so we might not need to handle history in localStorage directly in frontend anymore
+                    // if (data.history) { // Remove or adapt history handling based on Flask response
+                    //     conversationHistory = data.history;
+                    //     localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    // }
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingDiv.style.display = 'none';
+                    addMessageToUI('error', 'An error occurred while processing your request.');
+                }
+            });
+            // ... inside DOMContentLoaded listener, after submitBtn event listener ...
+
+            const imageUpload = document.getElementById('image-upload');
+            const imagePreview = document.getElementById('image-preview');
+            const visionBtn = document.getElementById('vision-btn');
+
+            let currentImageDataB64 = null; // Variable to store base64 image data
+
+            imageUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        currentImageDataB64 = e.target.result; // Store base64 data
+                        imagePreview.innerHTML = `<img src="${currentImageDataB64}" style="max-width: 100%; max-height: 100%;">`; // Display preview
+                        visionBtn.disabled = false; // Enable Vision button once image is loaded
+                    }
+                    reader.readAsDataURL(file);
+                } else {
+                    imagePreview.innerHTML = ''; // Clear preview if no file selected
+                    visionBtn.disabled = true; // Disable Vision button if no image
+                    currentImageDataB64 = null;
+                }
+            });
+
+            visionBtn.addEventListener('click', async () => {
+                if (!currentImageDataB64) {
+                    alert('Please upload an image first.');
+                    return;
+                }
+
+                // Show loading indicator (you might want a separate one for image processing)
+                loadingDiv.style.display = 'block';
+
+                try {
+                    const response = await fetch(`${apiUrl}/api/vision`, { // Call Flask /api/vision endpoint
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            image: currentImageDataB64, // Send base64 image data
+                            prompt: userInput.value.trim() // Optionally send user prompt as well
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    // Hide loading indicator
+                    loadingDiv.style.display = 'none';
+
+                    if (data.error) {
+                        addMessageToUI('error', data.error);
+                        return;
+                    }
+
+                    // Display vision response - adjust based on Flask response format
+                    addMessageToUI('assistant', data.response); // Assuming Flask returns vision response in 'response' field
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingDiv.style.display = 'none';
+                    addMessageToUI('error', 'Error processing image analysis request.');
+                }
+            });
+            function addMessageToUI(role, content, metadata = null) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}-message`;
+
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'role-label';
+                roleLabel.textContent = role === 'user' ? 'You' :
+                                       role === 'assistant' ? 'Hextrix AI' : 'Error';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+
+                messageDiv.appendChild(roleLabel);
+                messageDiv.appendChild(contentDiv);
+
+                // Add metadata if available - Removed metadata block for now
+                conversationContainer.appendChild(messageDiv);
+
+                // Scroll to the bottom of the conversation
+                conversationContainer.scrollTop = conversationContainer.scrollHeight;
+
+                // Add to local conversation history
+                if (role !== 'error') {
+                    const historyItem = { role, content };
+                    // Only add to local history if not already in the server history
+                    if (!conversationHistory.some(item =>
+                        item.role === historyItem.role && item.content === historyItem.content)) {
+                        conversationHistory.push(historyItem);
+                        localStorage.setItem('hextrix_conversation', JSON.stringify(conversationHistory));
+                    }
+                }
+            }
+
+            function displayConversationHistory() {
+                if (conversationHistory.length > 0) {
+                    conversationHistory.forEach(item => {
+                        addMessageToUI(item.role, item.content);
+                    });
+                }
+            }
+        });
+        // Neuron class
+        class Neuron {
+            constructor(x, y, z, label = "") { // Add 'label' parameter with default empty string
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.active = false;
+                this.activeIntensity = 0;
+                this.relatedNeurons = [];
+                this.label = label; // Store the label text
+            }
+
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+
+
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+
+            draw() {
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + this.z);
+                const x = brainCenter.x + this.x * scale;
+                const y = brainCenter.y + this.y * scale;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 3 * scale, 0, Math.PI * 2);
+
+                if (this.active) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${this.activeIntensity})`;
+                } else {
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                }
+
+                ctx.fill();
+                ctx.fill(); // Existing circle fill code
+
+                // Draw text label
+                if (this.label) {
+                    ctx.font = `12px Arial`; // Adjust font size and family as needed
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.8)'; // Label text color
+                    ctx.textAlign = 'left'; // Align text to the right of the neuron
+                    ctx.textBaseline = 'middle'; // Vertically center text
+                    ctx.fillText(this.label, x + (3 + 5) * scale, y); // Position text to the right of circle
+                }
+            }
+            }
+
+
+        // Connection class
+        class Connection {
+            constructor(fromId, toId, strength) {
+                this.fromId = fromId;
+                this.toId = toId;
+                this.strength = strength;
+                this.active = false;
+                this.activeIntensity = 0;
+            }
+
+            activate() {
+                this.active = true;
+                this.activeIntensity = 1;
+            }
+
+            update() {
+                if (this.active) {
+                    this.activeIntensity = Math.max(0, this.activeIntensity - 0.02);
+                    if (this.activeIntensity <= 0) {
+                        this.active = false;
+                    }
+                }
+            }
+
+            draw() {
+                const from = neurons[this.fromId];
+                const to = neurons[this.toId];
+
+                // Project 3D coordinates to 2D
+                const scale1 = 1000 / (1000 + from.z);
+                const x1 = brainCenter.x + from.x * scale1;
+                const y1 = brainCenter.y + from.y * scale1;
+
+                const scale2 = 1000 / (1000 + to.z);
+                const x2 = brainCenter.x + to.x * scale2;
+                const y2 = brainCenter.y + to.y * scale2;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+
+                if (this.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.activeIntensity * 0.7})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${this.strength * 0.3})`;
+                    ctx.lineWidth = 1;
+                }
+
+                ctx.stroke();
+            }
+        }
+
+        // Canvas setup (keep as is)
+        const canvas = document.getElementById('brainCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to full window size (keep as is)
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Global variables (keep and add new ones)
+        let neurons = [];
+        let connections = [];
+        let memories = [];
+        let currentView = 'full';
+        let rotation = 0;
+        let uiVisible = true;
+        let isFullscreen = false; // Track fullscreen state
+        let searchQuery = ''; // Track memory search query
+
+        // Brain structure parameters (keep as is)
+        const brainCenter = { x: canvas.width / 2, y: canvas.height / 2, z: 0 };
+        const brainSize = { x: canvas.width * 0.25, y: canvas.height * 0.25, z: canvas.width * 0.25 };
+
+        // Brain mesh data (keep as is)
+        const brainMesh = {
+            vertices: [],
+            edges: [],
+            loaded: false
+        };
+
+        // Generate brain mesh
+        function generateBrainMesh() {
+            // Create a more complex brain-like structure
+
+            // Basic brain shape parameters
+            const centerX = 0;
+            const centerY = 0;
+            const centerZ = 0;
+            const brainWidth = brainSize.x * 0.8;
+            const brainHeight = brainSize.y * 0.8;
+            const brainDepth = brainSize.z * 0.8;
+
+            // Generate vertices
+            const vertexCount = 800;
+            brainMesh.vertices = [];
+
+            // First create the core brain shape
+            for (let i = 0; i < vertexCount * 0.7; i++) {
+                // Generate points in brain-like shape
+                // Using a modified ellipsoid with some random variation
+
+                // Start with angles that cover the ellipsoid
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+
+                // Add some variations to make it more brain-like
+                const r1 = 0.7 + Math.random() * 0.3; // Radius variation
+
+                // Cerebral cortex wrinkles and folds
+                const wrinkle = 0.15 * Math.sin(theta * 8) * Math.sin(phi * 6);
+
+                // Basic ellipsoid shape with wrinkles
+                let x = centerX + brainWidth * r1 * Math.sin(phi) * Math.cos(theta) * (1 + wrinkle);
+                let y = centerY + brainHeight * r1 * Math.sin(phi) * Math.sin(theta) * (1 + wrinkle);
+                let z = centerZ + brainDepth * r1 * Math.cos(phi) * (1 + wrinkle);
+
+                // Add some asymmetry for a more realistic brain
+                if (x > 0) {
+                    x *= 1.05;
+                    y *= 0.95;
+                }
+
+                // Add some more detail to the bottom part (cerebellum and brain stem area)
+                if (z < 0 && y > brainHeight * 0.2) {
+                    z *= 1.2;
+                    y *= 0.9;
+                }
+
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 1 + Math.random() * 2,
+                    connCount: 0
+                });
+            }
+
+            // Add some additional points in the surrounding network
+            for (let i = 0; i < vertexCount * 0.3; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const r = 1.1 + Math.random() * 0.4; // Outside the main brain
+
+                const x = centerX + brainWidth * r * Math.sin(phi) * Math.cos(theta);
+                const y = centerY + brainHeight * r * Math.sin(phi) * Math.sin(theta);
+                const z = centerZ + brainDepth * r * Math.cos(phi);
+
+                brainMesh.vertices.push({
+                    x, y, z,
+                    size: 0.5 + Math.random(),
+                    connCount: 0
+                });
+            }
+
+            // Create connections between vertices
+            brainMesh.edges = [];
+
+            // Connect points based on proximity
+            for (let i = 0; i < brainMesh.vertices.length; i++) {
+                const v1 = brainMesh.vertices[i];
+
+                // Each vertex will connect to several nearby vertices
+                const maxConnections = 3 + Math.floor(Math.random() * 3);
+                let connections = 0;
+
+                for (let j = 0; j < brainMesh.vertices.length && connections < maxConnections; j++) {
+                    if (i === j) continue;
+
+                    const v2 = brainMesh.vertices[j];
+
+                    // Calculate distance between vertices
+                    const dx = v1.x - v2.x;
+                    const dy = v1.y - v2.y;
+                    const dz = v1.z - v2.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    // Connect if within range and not too many connections
+                    if (distance < brainWidth * 0.2 && v2.connCount < 6) {
+                        brainMesh.edges.push({
+                            from: i,
+                            to: j,
+                            active: false,
+                            activeIntensity: 0
+                        });
+
+                        connections++;
+                        v1.connCount++;
+                        v2.connCount++;
+                    }
+                }
+            }
+
+            brainMesh.loaded = true;
+        }
+
+        // Update brain mesh
+        function updateBrainMesh() {
+            if (!brainMesh.loaded) return;
+
+            // Update edge activations
+            brainMesh.edges.forEach(edge => {
+                if (edge.active) {
+                    edge.activeIntensity = Math.max(0, edge.activeIntensity - 0.02);
+                    if (edge.activeIntensity <= 0) {
+                        edge.active = false;
+                    }
+                }
+            });
+
+            // Randomly activate some edges
+            if (Math.random() < 0.1) {
+                const numToActivate = 1 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < numToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    brainMesh.edges[idx].active = true;
+                    brainMesh.edges[idx].activeIntensity = 1;
+                }
+            }
+        }
+
+        // Draw brain mesh
+        function drawBrainMesh() {
+            if (!brainMesh.loaded) return;
+
+            // Rotate brain mesh gradually
+            rotation += 0.002;
+
+            // Apply rotation to vertices for display
+            const rotatedVertices = brainMesh.vertices.map(v => {
+                // Only rotate in full view mode
+                if (currentView !== 'full') {
+                    return {
+                        x: v.x,
+                        y: v.y,
+                        z: v.z,
+                        size: v.size
+                    };
+                }
+
+                // Apply rotation around Y axis
+                const cosR = Math.cos(rotation);
+                const sinR = Math.sin(rotation);
+
+                return {
+                    x: v.x * cosR + v.z * sinR,
+                    y: v.y,
+                    z: v.z * cosR - v.x * sinR,
+                    size: v.size
+                };
+            });
+
+            // Draw edges
+            brainMesh.edges.forEach(edge => {
+                const v1 = rotatedVertices[edge.from];
+                const v2 = rotatedVertices[edge.to];
+
+                // Project 3D coordinates to 2D
+                const scale = 1000 / (1000 + v1.z);
+                const x1 = brainCenter.x + v1.x * scale;
+                const y1 = brainCenter.y + v1.y * scale;
+
+                const scale2 = 1000 / (1000 + v2.z);
+                const x2 = brainCenter.x + v2.x * scale2;
+                const y2 = brainCenter.y + v2.y * scale2;
+
+                // Draw connection
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+
+                if (edge.active) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${edge.activeIntensity * 0.5})`;
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+                    ctx.lineWidth = 1;
+                }
+
+                ctx.stroke();
+            });
+
+            // Draw vertices
+            rotatedVertices.forEach(v => {
+                const scale = 1000 / (1000 + v.z);
+                const x = brainCenter.x + v.x * scale;
+                const y = brainCenter.y + v.y * scale;
+
+                ctx.beginPath();
+                ctx.arc(x, y, v.size * scale, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                ctx.fill();
+                
+            });
+        }
+        function drawNeurons(memoryNodes) {
+            memoryNodes.forEach((nodeData) => {
+                const neuronIndex = nodeData.neuronIndex;
+                if (neuronIndex !== undefined && neurons[neuronIndex]) {
+                    const neuron = neurons[neuronIndex];
+                    neuron.update();
+                    neuron.draw();
+                } else {
+                    console.warn("Warning: Neuron object not found for node:", nodeData);
+                }
+            });
+        }
+                // New function to draw connections based on memoryNetwork.links
+                function drawConnections(memoryLinks) {
+            memoryLinks.forEach(linkData => {
+                const sourceNode = memoryNetwork.nodes.find(node => node.id === linkData.source);
+                const targetNode = memoryNetwork.nodes.find(node => node.id === linkData.target);
+
+                if (sourceNode && targetNode && sourceNode.neuronIndex !== undefined && targetNode.neuronIndex !== undefined) {
+                    const fromNeuron = neurons[sourceNode.neuronIndex];
+                    const toNeuron = neurons[targetNode.neuronIndex];
+
+                    if (fromNeuron && toNeuron) {
+                        // For simplicity, let's just draw a new Connection object each frame for now.
+                        // In a more optimized version, you might want to manage a persistent 'connections' array
+                        const tempConnection = new Connection(sourceNode.neuronIndex, targetNode.neuronIndex, linkData.strength || 0.3); // Default strength if not provided
+                        tempConnection.draw(); // Draw the connection
+                    } else {
+                        console.warn("Warning: Neuron objects not found for link:", linkData);
+                    }
+                } else {
+                    console.warn("Warning: Source or target node/neuron index missing for link:", linkData);
+                }
+            });
+        }
+        // Memory class
+        class Memory {
+            constructor(text) {
+                this.text = text;
+                this.neuronIds = [];
+                this.connectionIds = [];
+                this.lastAccessed = Date.now();
+                this.keywords = [];
+            }
+
+            addNeuron(id) {
+                this.neuronIds.push(id);
+            }
+
+            addConnection(id) {
+                this.connectionIds.push(id);
+            }
+
+            activate() {
+                this.lastAccessed = Date.now();
+
+                // Activate neurons
+                this.neuronIds.forEach(id => {
+                    neurons[id].activate();
+                });
+
+                // Activate connections
+                this.connectionIds.forEach(id => {
+                    connections[id].activate();
+                });
+
+                // Activate brain mesh edges near memory neurons
+                const numEdgesToActivate = 5 + Math.floor(Math.random() * 5);
+                const indices = [];
+
+                // Select random edges to activate
+                for (let i = 0; i < numEdgesToActivate; i++) {
+                    const idx = Math.floor(Math.random() * brainMesh.edges.length);
+                    indices.push(idx);
+                }
+
+                // Activate them with slight delays
+                indices.forEach((idx, i) => {
+                    setTimeout(() => {
+                        brainMesh.edges[idx].active = true;
+                        brainMesh.edges[idx].activeIntensity = 1;
+
+                        setTimeout(() => {
+                            brainMesh.edges[idx].active = false;
+                        }, 800 + Math.random() * 500);
+                    }, i * 50);
+                });
+            }
+        }
+
+        // Initialize brain structure
+        function initBrain() {
+            // Generate brain mesh
+            generateBrainMesh();
+
+            // Create additional neurons for memories
+            for (let i = 0; i < 100; i++) {
+                // Random position within brain
+                let x, y, z;
+                do {
+                    x = (Math.random() * 2 - 1) * brainSize.x;
+                    y = (Math.random() * 2 - 1) * brainSize.y;
+                    z = (Math.random() * 2 - 1) * brainSize.z;
+                } while ((x*x)/(brainSize.x*brainSize.x) +
+                         (y*y)/(brainSize.y*brainSize.y) +
+                         (z*z)/(brainSize.z*brainSize.z) > 0.7);
+
+                neurons.push(new Neuron(x, y, z));
+            }
+
+            // Create initial connections between neurons
+            for (let i = 0; i < neurons.length; i++) {
+                // Connect to nearby neurons
+                for (let j = 0; j < neurons.length; j++) {
+                    if (i !== j) {
+                        const dx = neurons[i].x - neurons[j].x;
+                        const dy = neurons[i].y - neurons[j].y;
+                        const dz = neurons[i].z - neurons[j].z;
+                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                        if (distance < brainSize.x * 0.3) {
+                            const strength = 0.5 + Math.random() * 0.5;
+                            const connectionId = connections.length;
+                            connections.push(new Connection(i, j, strength));
+                            neurons[i].relatedNeurons.push(j);
+                            neurons[j].relatedNeurons.push(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update memory list in UI
+        function updateMemoryList() {
+            const memoryList = document.getElementById('memories');
+            memoryList.innerHTML = '';
+
+            // Sort memories by most recently accessed
+            const sortedMemories = [...memories].sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+            sortedMemories.forEach(memory => {
+                const memoryDiv = document.createElement('div');
+                memoryDiv.className = 'memory-item';
+                memoryDiv.innerText = memory.text;
+                memoryDiv.addEventListener('click', () => {
+                    memory.activate();
+                });
+                memoryList.appendChild(memoryDiv);
+            });
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update brain mesh (keep)
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update force layout for neurons and links  <-- ADD THIS LINE
+            updateForceLayout(memoryNetwork.nodes, memoryNetwork.links);
+
+            // Draw neural connections (using memoryNetwork links)
+            drawConnections(memoryNetwork.links);
+
+            // Draw neurons based on memoryNetwork nodes
+            drawNeurons(memoryNetwork.nodes);
+
+            // Call updateVisualization of MemoryNetwork (keep)
+            memoryNetwork.updateVisualization();
+        }
+
+
+        // Toggle UI visibility (Modified to toggle 'hidden' class on UI elements)
+        function toggleUI() {
+            const uiPanel = document.getElementById('uiPanel');
+            uiVisible = !uiVisible;
+
+            if (uiVisible) {
+                uiPanel.classList.remove('hidden');
+                document.querySelector('.controls').classList.remove('hidden');
+                document.querySelector('.memory-list').classList.remove('hidden');
+            } else {
+                uiPanel.classList.add('hidden');
+                document.querySelector('.controls').classList.add('hidden');
+                document.querySelector('.memory-list').classList.add('hidden');
+            }
+        }
+
+        // Toggle Fullscreen
+        function toggleFullscreen() {
+            if (!isFullscreen) {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
+                    document.documentElement.mozRequestFullScreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+                    document.documentElement.webkitRequestFullscreen();
+                } else if (document.documentElement.msRequestFullscreen) { /* IE/Edge */
+                    document.documentElement.msRequestFullscreen();
+                }
+                isFullscreen = true;
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE/Edge */
+                    document.msExitFullscreen();
+                }
+                isFullscreen = false;
+            }
+        }
+
+            // Simulate random thoughts - activate random neurons and connections
+            if (Math.random() < 0.02) {
+                // Activate a random neuron
+                if (neurons.length > 0) {
+                    const neuronIndex = Math.floor(Math.random() * neurons.length);
+                    neurons[neuronIndex].activate();
+                }
+            }
+            if (Math.random() < 0.01 && connections.length > 0) {
+                const connectionIndex = Math.floor(Math.random() * connections.length);
+                connections[connectionIndex].activate();
+            }
+
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Simulate random thoughts - activate random neurons and connections
+            if (Math.random() < 0.02) {
+                // Activate a random neuron
+                if (neurons.length > 0) {
+                    const neuronIndex = Math.floor(Math.random() * neurons.length);
+                    neurons[neuronIndex].activate();
+                }
+            }
+            if (Math.random() < 0.01 && connections.length > 0) {
+                const connectionIndex = Math.floor(Math.random() * connections.length);
+                connections[connectionIndex].activate();
+            }
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw brain mesh
+            updateBrainMesh();
+            drawBrainMesh();
+
+            // Update and draw neural connections
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            // Update and draw neurons
+            neurons.forEach(neuron => {
+                neuron.update();
+                neuron.draw();
+            });
+        }
+            // HUD Toggle
+            let hudInitialized = false;
+            document.getElementById('hudToggle').addEventListener('click', () => {
+                const hudPanel = document.getElementById('hudPanel');
+                const uiPanel = document.getElementById('uiPanel');
+                hudPanel.classList.toggle('active');
+                const isActive = hudPanel.classList.contains('active');
+                window.toggleHUD(isActive);
+
+                if (isActive) {
+                    uiPanel.classList.add('hidden');
+                    if (!hudInitialized) {
+                        // Additional initialization if needed
+                        hudInitialized = true;
+                    }
+                } else {
+                    uiPanel.classList.remove('hidden');
+                }
+            });
+
+        // Handle window resize (keep as is)
+        window.addEventListener('resize', () => { /* ... */ });
+
+        // Create a new memory (keep as is)
+        function createMemory(text) { /* ... */ }
+
+        // Process conversation to extract keywords (keep as is)
+        function processConversation(text) { /* ... */ }
+
+
+        // Save state to localStorage (keep as is)
+        function saveState() { /* ... */ }
+
+        // Load state from localStorage (keep as is)
+        function loadState() { /* ... */ }
+
+        // Export memories to JSON file (keep as is)
+        function exportMemories() { /* ... */ }
+
+        // Import memories from JSON file (keep as is)
+        function importMemories() { /* ... */ }
+
+        // Clear search function (keep as is)
+        function clearSearch() { /* ... */ }
+
+        // Clear all memories function (keep as is)
+        function clearAllMemories() { /* ... */ }
+
+
+        // Keyboard shortcuts (keep and add search focus)
+        document.addEventListener('keydown', function(event) { /* ... */ });
+
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize brain
+            initBrain();
+            // Instantiate MemoryNetwork
+            const memoryNetwork = new MemoryNetwork(); // Instantiate here
+
+            loadState(); // Load saved state on startup
+            updateMemoryList(); // Initial memory list update
+
+            // Save state every minute
+            setInterval(saveState, 60000);
+
+
+            // Add event listeners for buttons
+            document.getElementById('uiToggle').addEventListener('click', toggleUI);
+            document.getElementById('fullscreenToggle').addEventListener('click', toggleFullscreen);
+            document.getElementById('addMemory').addEventListener('click', () => {
+                const input = document.getElementById('memoryInput');
+                if (input.value.trim()) {
+                    createMemory(input.value.trim());
+                    input.value = '';
+                }
+            });
+
+            document.getElementById('memoryInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    createMemory(e.target.value.trim());
+                    e.target.value = '';
+                }
+            });
+
+            document.getElementById('processConversation').addEventListener('click', () => {
+                const input = document.getElementById('conversationInput');
+                const text = input.value.trim();
+                if (text) {
+                    processConversation(text);
+                    input.value = '';
+                }
+            });
+
+            document.getElementById('viewFull').addEventListener('click', () => { currentView = 'full'; animate(); });
+            document.getElementById('viewSide').addEventListener('click', () => { currentView = 'side'; animate(); });
+            document.getElementById('viewTop').addEventListener('click', () => { currentView = 'top'; animate(); });
+            document.getElementById('memorySearch').addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                updateMemoryList();
+            });
+            document.getElementById('clearSearch').addEventListener('click', clearSearch);
+            document.getElementById('clearMemories').addEventListener('click', clearAllMemories);
+            document.getElementById('exportMemories').addEventListener('click', exportMemories);
+            document.getElementById('importMemories').addEventListener('click', importMemories);
+
+
+            // Start animation loop
+            animate();
+        });
+        
+    </script>
+    <!-- <script src="index.js"></script> -->
+<style>
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.user-message {
+    border-left-color: var(--accent-purple);
+}
+
+.assistant-message {
+    border-left-color: var(--accent-blue);
+}
+
+.error-message {
+    border-left-color: #ff4444;
+}
+
+.role-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.message-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+.message {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+</style>
+    <!-- HUD Libraries (add only if not already present) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/shaders/CopyShader.js"></script>
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <!-- HUD Script wrapped in IIFE -->
+    <script>
+        (function() {
+            let isHUDActive = false;
+
+            function initGlobe() {
+                const container = document.getElementById('globe-container');
+                const canvas = document.getElementById('globe');
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+                camera.position.z = 2;
+                const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+                renderer.setSize(container.clientWidth, container.clientHeight);
+
+                const renderScene = new THREE.RenderPass(scene, camera);
+                const bloomPass = new THREE.UnrealBloomPass(
+                    new THREE.Vector2(container.clientWidth, container.clientHeight), 1.5, 0.4, 0.85
+                );
+                const composer = new THREE.EffectComposer(renderer);
+                composer.addPass(renderScene);
+                composer.addPass(bloomPass);
+
+                // Globe setup (copy from original HUD code)
+                const globeGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+                const globeMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x0066aa,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const globe = new THREE.Mesh(globeGeometry, globeMaterial);
+                scene.add(globe);
+
+                // Additional globe elements (glow, particles, etc.)
+                // Copy from original HUD code
+
+                function animate() {
+                    if (!isHUDActive) {
+                        requestAnimationFrame(animate);
+                        return;
+                    }
+                    globe.rotation.y += 0.002;
+                    // Other animation logic
+                    composer.render();
+                    requestAnimationFrame(animate);
+                }
+                animate();
+
+                window.addEventListener('resize', () => {
+                    camera.aspect = container.clientWidth / container.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(container.clientWidth, container.clientHeight);
+                    composer.setSize(container.clientWidth, container.clientHeight);
+                });
+            }
+
+            function initCharts() {
+                // Copy chart initialization from HUD code
+            }
+
+            function createDotGrid() {
+                // Copy dot grid creation from HUD code
+            }
+
+            // Initialize HUD when DOM is loaded
+            document.addEventListener('DOMContentLoaded', () => {
+                initGlobe();
+                initCharts();
+                createDotGrid();
+                // Notification interval logic
+            });
+
+            // Expose toggle function
+            window.toggleHUD = function(state) {
+                isHUDActive = state;
+            };
+        })();
+    </script>
+    <script>
+        // Conversation Panel Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Variables and elements
+    const panel = document.querySelector('.conversation-panel');
+    const toggleButton = document.createElement('div');
+    toggleButton.className = 'chat-toggle-button';
+    toggleButton.id = 'chatToggleButton';
+    toggleButton.innerHTML = '<i>💬</i>';
+    document.body.appendChild(toggleButton);
+    
+    const panelToggle = document.querySelector('.panel-toggle');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendMessage');
+    const clearConversationBtn = document.getElementById('clearConversation');
+    const exportConversationBtn = document.getElementById('exportConversation');
+    const micToggleBtn = document.getElementById('micToggle');
+    const cameraToggleBtn = document.getElementById('cameraToggle');
+    const screenShareToggleBtn = document.getElementById('screenShareToggle');
+    
+    // Create waveform bars
+    const waveform = document.getElementById('waveform');
+    if (waveform) {
+        for (let i = 0; i < 50; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'waveform-bar';
+            bar.style.height = '3px';
+            waveform.appendChild(bar);
+        }
+    }
+    
+    // Toggle panel functionality
+    toggleButton.addEventListener('click', () => {
+        panel.classList.toggle('active');
+        toggleButton.classList.toggle('active');
+        
+        // Load conversation history when opened
+        if (panel.classList.contains('active')) {
+            loadConversationHistory();
+        }
+    });
+    
+    // Panel toggle to close
+    if (panelToggle) {
+        panelToggle.addEventListener('click', () => {
+            panel.classList.remove('active');
+            if (toggleButton) toggleButton.classList.remove('active');
+        });
+    }
+    
+    // Handle message sending
+    if (sendButton && messageInput) {
+        sendButton.addEventListener('click', () => {
+            if (messageInput.value.trim()) {
+                sendMessage(messageInput.value);
+                messageInput.value = '';
+            }
+        });
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+    }
+    
+    // Add other event listeners
+    if (clearConversationBtn) clearConversationBtn.addEventListener('click', clearConversation);
+    if (exportConversationBtn) exportConversationBtn.addEventListener('click', exportConversation);
+    if (micToggleBtn) micToggleBtn.addEventListener('click', toggleMicrophone);
+    if (cameraToggleBtn) cameraToggleBtn.addEventListener('click', toggleCamera);
+    if (screenShareToggleBtn) screenShareToggleBtn.addEventListener('click', toggleScreenShare);
+    
+    // Initialize audio analyzer
+    initAudioAnalyzer();
+});
+
+// Function to load conversation history from the server
+async function loadConversationHistory() {
+    try {
+        const response = await fetch('/api/conversation/history');
+        const data = await response.json();
+        
+        const historyContainer = document.getElementById('conversationHistory');
+        historyContainer.innerHTML = '';
+        
+        if (data.conversations && data.conversations.length > 0) {
+            data.conversations.forEach(item => {
+                addMessageToHistory('user', item.user_message, new Date(item.timestamp));
+                addMessageToHistory('ai', item.ai_response, new Date(item.timestamp));
+            });
+            
+            // Scroll to bottom
+            historyContainer.scrollTop = historyContainer.scrollHeight;
+        }
+    } catch (error) {
+        console.error('Error loading conversation history:', error);
+    }
+}
+
+// Function to add a message to the conversation history
+function addMessageToHistory(role, content, timestamp = new Date()) {
+    const historyContainer = document.getElementById('conversationHistory');
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `conversation-item ${role === 'user' ? 'user-message' : 'ai-message'}`;
+    
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    
+    const sender = document.createElement('span');
+    sender.textContent = role === 'user' ? 'You' : 'Hextrix AI';
+    
+    const time = document.createElement('span');
+    time.textContent = formatTimestamp(timestamp);
+    
+    header.appendChild(sender);
+    header.appendChild(time);
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.textContent = content;
+    
+    messageDiv.appendChild(header);
+    messageDiv.appendChild(messageContent);
+    
+    historyContainer.appendChild(messageDiv);
+    
+    // Scroll to the new message
+    historyContainer.scrollTop = historyContainer.scrollHeight;
+    
+    // Make sure the panel is visible when new messages arrive
+    const panel = document.querySelector('.conversation-panel');
+    const toggleButton = document.getElementById('chatToggleButton');
+    
+    // Only auto-open the panel when AI responds (not for user messages)
+    if (role === 'ai' && !panel.classList.contains('active')) {
+        panel.classList.add('active');
+        toggleButton.classList.add('active');
+    }
+}
+
+// Function to send a message to the server
+async function sendMessage(message) {
+    if (!message.trim()) return;
+    
+    // Add user message to history immediately
+    addMessageToHistory('user', message);
+    
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                model: document.getElementById('model-type')?.value || 'llama'
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Add AI response to history
+        if (data.response) {
+            addMessageToHistory('ai', data.response);
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        addMessageToHistory('ai', 'Sorry, I encountered an error processing your request.');
+    }
+}
+
+// Helper function to format timestamps
+function formatTimestamp(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Toggle microphone functionality
+let audioContext;
+let audioAnalyser;
+let microphone;
+let isRecording = false;
+
+async function toggleMicrophone() {
+    const micToggle = document.getElementById('micToggle');
+    
+    if (!isRecording) {
+        try {
+            // Start recording
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Initialize audio context if not already created
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioAnalyser = audioContext.createAnalyser();
+                audioAnalyser.fftSize = 256;
+            }
+            
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(audioAnalyser);
+            
+            isRecording = true;
+            micToggle.classList.add('active');
+            
+            // Start visualization
+            updateWaveform();
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            alert('Could not access the microphone. Please check permissions.');
+        }
+    } else {
+        // Stop recording
+        if (microphone) {
+            microphone.disconnect();
+            microphone = null;
+        }
+        
+        isRecording = false;
+        micToggle.classList.remove('active');
+    }
+}
+
+// Initialize audio analyzer for waveform
+function initAudioAnalyzer() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+    } catch (error) {
+        console.error('Error initializing audio analyzer:', error);
+    }
+}
+
+// Update waveform visualization
+function updateWaveform() {
+    if (!isRecording) return;
+    
+    const bufferLength = audioAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    audioAnalyser.getByteFrequencyData(dataArray);
+    
+    const bars = document.querySelectorAll('.waveform-bar');
+    const step = Math.floor(bufferLength / bars.length);
+    
+    for (let i = 0; i < bars.length; i++) {
+        const value = dataArray[i * step];
+        const height = Math.max(3, value / 2); // Scale height (max 128)
+        bars[i].style.height = `${height}px`;
+    }
+    
+    requestAnimationFrame(updateWaveform);
+}
+
+// Toggle camera functionality
+let cameraStream;
+
+async function toggleCamera() {
+    const cameraToggle = document.getElementById('cameraToggle');
+    const videoPreview = document.getElementById('videoPreview');
+    
+    if (!cameraStream) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoPreview.srcObject = stream;
+            cameraStream = stream;
+            cameraToggle.classList.add('active');
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+            alert('Could not access the camera. Please check permissions.');
+        }
+    } else {
+        // Stop camera
+        cameraStream.getTracks().forEach(track => track.stop());
+        videoPreview.srcObject = null;
+        cameraStream = null;
+        cameraToggle.classList.remove('active');
+    }
+}
+
+// Toggle screen sharing functionality
+let screenStream;
+
+async function toggleScreenShare() {
+    const screenShareToggle = document.getElementById('screenShareToggle');
+    const videoPreview = document.getElementById('videoPreview');
+    
+    if (!screenStream) {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            videoPreview.srcObject = stream;
+            screenStream = stream;
+            screenShareToggle.classList.add('active');
+            
+            // Handle stream ending (user stops sharing)
+            stream.getVideoTracks()[0].onended = () => {
+                videoPreview.srcObject = null;
+                screenStream = null;
+                screenShareToggle.classList.remove('active');
+            };
+        } catch (error) {
+            console.error('Error sharing screen:', error);
+            alert('Could not share screen. Please check permissions.');
+        }
+    } else {
+        // Stop screen sharing
+        screenStream.getTracks().forEach(track => track.stop());
+        videoPreview.srcObject = null;
+        screenStream = null;
+        screenShareToggle.classList.remove('active');
+    }
+}
+
+// Clear conversation history
+function clearConversation() {
+    if (confirm('Are you sure you want to clear the conversation history?')) {
+        document.getElementById('conversationHistory').innerHTML = '';
+        // You might want to also clear server-side history with an API call
+    }
+}
+
+// Export conversation history
+function exportConversation() {
+    const historyContainer = document.getElementById('conversationHistory');
+    let exportText = '';
+    
+    // Extract text from conversation items
+    const items = historyContainer.querySelectorAll('.conversation-item');
+    items.forEach(item => {
+        const isUser = item.classList.contains('user-message');
+        const sender = isUser ? 'You' : 'Hextrix AI';
+        const content = item.querySelector('.message-content').textContent;
+        const time = item.querySelector('.message-header span:last-child').textContent;
+        
+        exportText += `[${time}] ${sender}: ${content}\n\n`;
+    });
+    
+    // Create download link
+    const blob = new Blob([exportText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hextrix-conversation-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    
+    // Clean up
+    URL.revokeObjectURL(url);
+}
+    </script>
+    <script type="text/babel">
+        import React, { useState, useRef, useEffect } from 'react';
+import io from 'socket.io-client';
+
+const SpeechInputPanel = () => {
+    const [isListening, setIsListening] = useState(false);
+    const [transcript, setTranscript] = useState('');
+    const [interimTranscript, setInterimTranscript] = useState('');
+    const [searchType, setSearchType] = useState('text');
+    const [searchResults, setSearchResults] = useState(null);
+    const [aiEmotion, setAiEmotion] = useState(null);
+    const [perplexityContext, setPerplexityContext] = useState(null);
+
+    const speechRecognition = useRef(null);
+    const socketRef = useRef(null);
+
+    useEffect(() => {
+        // Initialize speech recognition
+        speechRecognition.current = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        speechRecognition.current.continuous = true;
+        speechRecognition.current.interimResults = true;
+        speechRecognition.current.lang = 'en-US';
+
+        // Initialize socket
+        socketRef.current = io();
+
+        // Socket event listeners
+        socketRef.current.on('transcription_analysis', handleTranscriptionAnalysis);
+        socketRef.current.on('search_results', handleSearchResults);
+
+        // Speech recognition event handlers
+        speechRecognition.current.onresult = handleSpeechResult;
+        speechRecognition.current.onerror = handleSpeechError;
+
+        // Cleanup
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
+    }, []);
+
+    const handleStartListening = () => {
+        if (speechRecognition.current) {
+            speechRecognition.current.start();
+            setIsListening(true);
+            setTranscript('');
+            setInterimTranscript('');
+        }
+    };
+
+    const handleStopListening = () => {
+        if (speechRecognition.current) {
+            speechRecognition.current.stop();
+            setIsListening(false);
+        }
+    };
+
+    const handleSpeechResult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript;
+            } else {
+                interimTranscript += event.results[i][0].transcript;
+            }
+        }
+
+        setTranscript(prev => prev + finalTranscript);
+        setInterimTranscript(interimTranscript);
+
+        // Send transcript to server for processing
+        if (socketRef.current && finalTranscript.trim()) {
+            socketRef.current.emit('audio_data', { 
+                transcript: finalTranscript,
+                timestamp: new Date().toISOString()
+            });
+        }
+    };
+
+    const handleSpeechError = (event) => {
+        console.error('Speech recognition error:', event);
+        setIsListening(false);
+        alert('Speech recognition failed. Please try again.');
+    };
+
+    const handleTranscriptionAnalysis = (data) => {
+        // Update AI emotion state
+        if (data.ai_emotion) {
+            setAiEmotion(data.ai_emotion);
+        }
+
+        // Update Perplexity context
+        if (data.perplexity_context) {
+            setPerplexityContext(data.perplexity_context);
+        }
+    };
+
+    const handleSearchResults = (data) => {
+        setSearchResults(data.results);
+    };
+
+    const performSearch = () => {
+        if (socketRef.current && transcript) {
+            socketRef.current.emit('voice_search', {
+                transcript,
+                type: searchType
+            });
+        }
+    };
+
+
+
+    const renderPerplexityContext = () => {
+        if (!perplexityContext || !perplexityContext.results) return null;
+
+        return (
+            <div className="perplexity-context">
+                <h3>Contextual Insights</h3>
+                <ul>
+                    {perplexityContext.results.map((result, index) => (
+                        <li key={index}>
+                            <strong>{result.title}</strong>
+                            <p>{result.snippet}</p>
+                            <a 
+                                href={result.link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                            >
+                                Learn More
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        );
+    };
+
+    const renderSearchResults = () => {
+        if (!searchResults) return null;
+
+        return (
+            <div className="search-results">
+                <h3>Search Results</h3>
+                {searchType === 'text' && searchResults.organic_results && (
+                    <ul>
+                        {searchResults.organic_results.map((result, index) => (
+                            <li key={index}>
+                                <h4>{result.title}</h4>
+                                <p>{result.snippet}</p>
+                                <a 
+                                    href={result.link} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                >
+                                    {result.link}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {searchType === 'image' && searchResults.images_results && (
+                    <div className="image-results">
+                        {searchResults.images_results.map((image, index) => (
+                            <img 
+                                key={index} 
+                                src={image.thumbnail} 
+                                alt={image.title} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="speech-input-panel">
+            <div className="speech-controls">
+                <select 
+                    value={searchType} 
+                    onChange={(e) => setSearchType(e.target.value)}
+                    className="search-type-selector"
+                >
+                    <option value="text">Text Search</option>
+                    <option value="image">Image Search</option>
+                    <option value="lens">Google Lens</option>
+                </select>
+
+                <div className="mic-container">
+                    {!isListening ? (
+                        <button 
+                            onClick={handleStartListening} 
+                            className="mic-button"
+                        >
+                            🎤 Start Listening
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleStopListening} 
+                            className="mic-button listening"
+                        >
+                            ⏹️ Stop Listening
+                        </button>
+                    )}
+                </div>
+
+                <button 
+                    onClick={performSearch} 
+                    disabled={!transcript}
+                    className="search-button"
+                >
+                    🔍 Search
+                </button>
+            </div>
+
+            <div className="transcript-display">
+                <h3>Transcript</h3>
+                <p>{transcript}</p>
+                {interimTranscript && (
+                    <p className="interim-transcript">{interimTranscript}</p>
+                )}
+            </div>
+
+            {renderAIEmotion()}
+            {renderPerplexityContext()}
+            {renderSearchResults()}
+        </div>
+    );
+};
+
+export default SpeechInputPanel;
+    </script>
+</body>
+</html>
