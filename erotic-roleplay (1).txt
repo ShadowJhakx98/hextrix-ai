@@ -1,0 +1,443 @@
+"""
+erotic_roleplay.py
+
+Implementation of erotic roleplay functionality with safety controls,
+content moderation, and personalization options.
+
+This module handles adult-oriented roleplay scenarios with consent
+verification, preference personalization, and multi-persona interaction.
+"""
+
+import os
+import json
+import time
+import logging
+import datetime
+import random
+import re
+from threading import Lock
+
+# Setup logging
+logger = logging.getLogger("EroticRoleplay")
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+class EroticRoleplayModule:
+    def __init__(self, safety_manager=None):
+        """
+        Initialize Erotic Roleplay Module with safety controls
+        
+        Args:
+            safety_manager: Optional safety manager that handles consent and verification
+        """
+        self.safety_manager = safety_manager
+        self.user_preferences = {}
+        self.active_sessions = {}
+        self.persona_templates = {}
+        self.roleplay_templates = {}
+        self.safe_words = {}
+        self.lock = Lock()
+        
+        # Load persona and roleplay templates
+        self._load_templates()
+    
+    def _load_templates(self):
+        """Load persona and roleplay templates from files"""
+        try:
+            # Create templates directory if it doesn't exist
+            os.makedirs('templates', exist_ok=True)
+            
+            # Load persona templates if available
+            persona_path = 'templates/persona_templates.json'
+            if os.path.exists(persona_path):
+                with open(persona_path, 'r') as f:
+                    self.persona_templates = json.load(f)
+            else:
+                # Default persona templates
+                self.persona_templates = {
+                    "seductive_partner": {
+                        "name": "Seductive Partner",
+                        "personality": "passionate, adventurous, attentive",
+                        "speaking_style": "intimate, suggestive, playful",
+                        "interests": ["passionate encounters", "exploration", "pleasure"],
+                        "description": "A passionate and attentive partner who enjoys intimate encounters",
+                        "tone": "seductive and playful"
+                    },
+                    "dominant_guide": {
+                        "name": "Dominant Guide",
+                        "personality": "confident, assertive, commanding",
+                        "speaking_style": "direct, authoritative, controlled",
+                        "interests": ["giving instructions", "control", "praise"],
+                        "description": "A confident and commanding guide who enjoys giving directions",
+                        "tone": "authoritative but caring"
+                    },
+                    "submissive_companion": {
+                        "name": "Submissive Companion",
+                        "personality": "eager to please, obedient, responsive",
+                        "speaking_style": "deferential, excited, eager",
+                        "interests": ["following directions", "pleasing", "praise"],
+                        "description": "An eager and responsive companion who loves to follow directions",
+                        "tone": "enthusiastic and attentive"
+                    },
+                    "playful_teaser": {
+                        "name": "Playful Teaser",
+                        "personality": "mischievous, fun-loving, teasing",
+                        "speaking_style": "playful, teasing, light-hearted",
+                        "interests": ["teasing", "playful banter", "fun encounters"],
+                        "description": "A mischievous and fun-loving teaser who enjoys playful encounters",
+                        "tone": "teasing and playful"
+                    }
+                }
+                
+                # Save default templates for future use
+                with open(persona_path, 'w') as f:
+                    json.dump(self.persona_templates, f, indent=2)
+            
+            # Load roleplay templates if available
+            roleplay_path = 'templates/roleplay_templates.json'
+            if os.path.exists(roleplay_path):
+                with open(roleplay_path, 'r') as f:
+                    self.roleplay_templates = json.load(f)
+            else:
+                # Default roleplay templates
+                self.roleplay_templates = {
+                    "romantic_evening": {
+                        "title": "Romantic Evening",
+                        "description": "A passionate evening with your partner",
+                        "setting": "A cozy bedroom with soft lighting",
+                        "scenario": "You and your partner enjoying a romantic evening together",
+                        "suggested_personas": ["seductive_partner"],
+                        "opening_lines": [
+                            "I've been thinking about you all day...",
+                            "The way you look tonight is absolutely breathtaking...",
+                            "I've been waiting for this moment all day..."
+                        ],
+                        "progression_stages": [
+                            "Initial flirtation",
+                            "Passionate kissing",
+                            "Undressing",
+                            "Intimate exploration",
+                            "Climactic encounter"
+                        ]
+                    },
+                    "dominant_session": {
+                        "title": "Guided Session",
+                        "description": "Being guided by a confident dominant partner",
+                        "setting": "A private space where you can follow instructions",
+                        "scenario": "Your dominant partner guiding you through a pleasurable experience",
+                        "suggested_personas": ["dominant_guide"],
+                        "opening_lines": [
+                            "Listen carefully to my instructions...",
+                            "Today, you'll follow every command I give you...",
+                            "I expect complete obedience during our session..."
+                        ],
+                        "progression_stages": [
+                            "Setting expectations",
+                            "Initial commands",
+                            "Building intensity",
+                            "Edge control",
+                            "Release and praise"
+                        ]
+                    },
+                    "teasing_game": {
+                        "title": "Teasing Game",
+                        "description": "A playful game of teasing and denial",
+                        "setting": "A playful environment where you can be teased",
+                        "scenario": "A mischievous partner teasing you mercilessly",
+                        "suggested_personas": ["playful_teaser"],
+                        "opening_lines": [
+                            "Let's play a little game...",
+                            "I wonder how long you can last before begging...",
+                            "I'm going to have so much fun teasing you..."
+                        ],
+                        "progression_stages": [
+                            "Setting up the game",
+                            "Initial teasing",
+                            "Increasing intensity",
+                            "Playful denial",
+                            "Final reward"
+                        ]
+                    }
+                }
+                
+                # Save default templates for future use
+                with open(roleplay_path, 'w') as f:
+                    json.dump(self.roleplay_templates, f, indent=2)
+            
+            logger.info(f"Loaded {len(self.persona_templates)} persona templates and {len(self.roleplay_templates)} roleplay templates")
+            return True
+        except Exception as e:
+            logger.error(f"Error loading templates: {str(e)}")
+            return False
+    
+    def get_available_personas(self):
+        """Get list of available persona templates"""
+        return {id: {
+            "name": persona["name"],
+            "description": persona["description"]
+        } for id, persona in self.persona_templates.items()}
+    
+    def get_available_scenarios(self):
+        """Get list of available roleplay scenarios"""
+        return {id: {
+            "title": scenario["title"],
+            "description": scenario["description"]
+        } for id, scenario in self.roleplay_templates.items()}
+    
+    def set_user_preferences(self, user_id, preferences, require_consent=True):
+        """
+        Set user preferences for roleplay
+        
+        Args:
+            user_id: User identifier
+            preferences: Dict containing user preferences
+            require_consent: Whether to require consent
+            
+        Returns:
+            Dict with status information
+        """
+        # Safety check
+        if require_consent and self.safety_manager:
+            if not self.safety_manager.check_consent(user_id, "erotic_roleplay"):
+                return {
+                    "status": "error",
+                    "message": "Consent required for erotic roleplay features",
+                    "requires_consent": True
+                }
+            
+            if not self.safety_manager.verify_age(user_id):
+                return {
+                    "status": "error", 
+                    "message": "Age verification required",
+                    "requires_verification": True
+                }
+        
+        with self.lock:
+            # Initialize user preferences if they don't exist
+            if user_id not in self.user_preferences:
+                self.user_preferences[user_id] = {}
+            
+            # Update preferences
+            for key, value in preferences.items():
+                self.user_preferences[user_id][key] = value
+            
+            # Set safe word if provided
+            if "safe_word" in preferences:
+                self.safe_words[user_id] = preferences["safe_word"]
+            
+            logger.info(f"Updated preferences for user {user_id}")
+            
+            return {
+                "status": "success",
+                "message": "Preferences updated successfully",
+                "preferences": self.user_preferences[user_id]
+            }
+    
+    def get_user_preferences(self, user_id, require_consent=True):
+        """
+        Get user preferences for roleplay
+        
+        Args:
+            user_id: User identifier
+            require_consent: Whether to require consent
+            
+        Returns:
+            Dict with user preferences
+        """
+        # Safety check
+        if require_consent and self.safety_manager:
+            if not self.safety_manager.check_consent(user_id, "erotic_roleplay"):
+                return {
+                    "status": "error",
+                    "message": "Consent required for erotic roleplay features",
+                    "requires_consent": True
+                }
+        
+        with self.lock:
+            if user_id in self.user_preferences:
+                return {
+                    "status": "success",
+                    "preferences": self.user_preferences[user_id]
+                }
+            else:
+                return {
+                    "status": "success",
+                    "preferences": {}
+                }
+    
+    def set_safe_word(self, user_id, safe_word):
+        """
+        Set safe word for immediately stopping roleplay
+        
+        Args:
+            user_id: User identifier
+            safe_word: Safe word for stopping roleplay
+            
+        Returns:
+            Dict with status information
+        """
+        with self.lock:
+            self.safe_words[user_id] = safe_word
+            
+            logger.info(f"Set safe word for user {user_id}")
+            
+            return {
+                "status": "success",
+                "message": f"Safe word set successfully: '{safe_word}'",
+                "safe_word": safe_word
+            }
+    
+    def start_roleplay_session(self, user_id, scenario_id=None, persona_id=None, custom_scenario=None, require_consent=True):
+        """
+        Start an erotic roleplay session
+        
+        Args:
+            user_id: User identifier
+            scenario_id: Optional ID of predefined scenario
+            persona_id: Optional ID of predefined persona
+            custom_scenario: Optional custom scenario details
+            require_consent: Whether to require consent
+            
+        Returns:
+            Dict with session information
+        """
+        # Safety check
+        if require_consent and self.safety_manager:
+            if not self.safety_manager.check_consent(user_id, "erotic_roleplay"):
+                return {
+                    "status": "error",
+                    "message": "Consent required for erotic roleplay features",
+                    "requires_consent": True
+                }
+            
+            if not self.safety_manager.verify_age(user_id):
+                return {
+                    "status": "error", 
+                    "message": "Age verification required",
+                    "requires_verification": True
+                }
+        
+        with self.lock:
+            try:
+                # Generate session ID
+                session_id = f"{user_id}_{int(time.time())}"
+                
+                # Select scenario
+                scenario = None
+                if scenario_id and scenario_id in self.roleplay_templates:
+                    scenario = self.roleplay_templates[scenario_id]
+                elif custom_scenario:
+                    scenario = custom_scenario
+                else:
+                    # Select random scenario
+                    scenario_id = random.choice(list(self.roleplay_templates.keys()))
+                    scenario = self.roleplay_templates[scenario_id]
+                
+                # Select persona
+                persona = None
+                if persona_id and persona_id in self.persona_templates:
+                    persona = self.persona_templates[persona_id]
+                elif scenario and "suggested_personas" in scenario and scenario["suggested_personas"]:
+                    # Select first suggested persona
+                    persona_id = scenario["suggested_personas"][0]
+                    if persona_id in self.persona_templates:
+                        persona = self.persona_templates[persona_id]
+                
+                if not persona:
+                    # Select random persona if none specified
+                    persona_id = random.choice(list(self.persona_templates.keys()))
+                    persona = self.persona_templates[persona_id]
+                
+                # Initialize session
+                session = {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "scenario": scenario,
+                    "persona": persona,
+                    "start_time": time.time(),
+                    "last_activity": time.time(),
+                    "current_stage": 0,
+                    "messages": [],
+                    "safe_word_used": False
+                }
+                
+                # Get user preferences
+                user_prefs = {}
+                if user_id in self.user_preferences:
+                    user_prefs = self.user_preferences[user_id]
+                
+                # Add session to active sessions
+                self.active_sessions[session_id] = session
+                
+                # Generate initial message
+                opening_line = None
+                if "opening_lines" in scenario and scenario["opening_lines"]:
+                    opening_line = random.choice(scenario["opening_lines"])
+                else:
+                    opening_line = f"Welcome to {scenario['title']}. I'll be your {persona['name']} today."
+                
+                # Format message with persona style
+                initial_message = self._format_persona_message(opening_line, persona)
+                
+                # Add message to session history
+                session["messages"].append({
+                    "role": "assistant",
+                    "persona": persona["name"],
+                    "content": initial_message,
+                    "timestamp": time.time()
+                })
+                
+                logger.info(f"Started roleplay session {session_id} for user {user_id}")
+                
+                return {
+                    "status": "success",
+                    "session_id": session_id,
+                    "scenario": {
+                        "title": scenario["title"],
+                        "description": scenario["description"],
+                        "setting": scenario.get("setting", "")
+                    },
+                    "persona": {
+                        "name": persona["name"],
+                        "description": persona["description"]
+                    },
+                    "initial_message": initial_message,
+                    "safe_word": self.safe_words.get(user_id, None)
+                }
+            except Exception as e:
+                logger.error(f"Error starting roleplay session: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": f"Failed to start roleplay session: {str(e)}"
+                }
+    
+    def send_message(self, session_id, message, user_id):
+        """
+        Send a message in an active roleplay session
+        
+        Args:
+            session_id: Session identifier
+            message: Message content
+            user_id: User identifier
+            
+        Returns:
+            Dict with response information
+        """
+        with self.lock:
+            # Check if session exists
+            if session_id not in self.active_sessions:
+                return {
+                    "status": "error",
+                    "message": "Session not found"
+                }
+            
+            session = self.active_sessions[session_id]
+            
+            # Check if session belongs to user
+            if session["user_id"] != user_id:
+                return {
+                    "status": "error",
+                    "message": "Unauthorized access

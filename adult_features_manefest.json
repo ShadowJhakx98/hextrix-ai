@@ -1,0 +1,47 @@
+{
+    "name": "Hextrix Adult Features",
+    "version": "1.0.0",
+    "description": "Adult-oriented features for Hextrix AI",
+    "features": [
+        {
+            "id": "erotic_roleplay",
+            "name": "Erotic Roleplay",
+            "description": "Role-playing scenarios with adult content",
+            "requires_age_verification": true,
+            "requires_explicit_consent": true,
+            "has_safe_word": true,
+            "default_enabled": false,
+            "min_age": 18,
+            "privacy_level": "high"
+        },
+        {
+            "id": "joi",
+            "name": "Guided Sessions",
+            "description": "Guided masturbation sessions with timing and instructions",
+            "requires_age_verification": true,
+            "requires_explicit_consent": true,
+            "has_safe_word": true,
+            "default_enabled": false,
+            "min_age": 18,
+            "privacy_level": "high"
+        },
+        {
+            "id": "gender_recognition",
+            "name": "Gender Recognition",
+            "description": "AI-powered gender detection from images",
+            "requires_age_verification": false,
+            "requires_explicit_consent": true,
+            "has_safe_word": false,
+            "default_enabled": false,
+            "min_age": 16,
+            "privacy_level": "medium"
+        }
+    ],
+    "defaults": {
+        "safe_word": "stop",
+        "session_timeout_minutes": 30,
+        "content_moderation": true,
+        "data_retention_days": 1
+    },
+    "privacy_notice": "Adult content and interactions are not stored permanently. Data is deleted after 24 hours by default. Gender recognition images are not stored. All features require explicit consent which can be revoked at any time."
+}
