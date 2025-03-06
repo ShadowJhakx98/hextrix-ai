@@ -1,7 +1,7 @@
 """
-mem_drive.py
+cloud_memory.py
 
-Contains logic for large np.memmap usage, Drive uploads/backups, etc.
+Fixed memory management that uses Google Drive for storage with local caching
 """
 
 import os
@@ -9,49 +9,64 @@ import io
 import datetime
 import numpy as np
 import logging
+import json
+import time
+from pathlib import Path
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
-from pathlib import Path
 
-logger = logging.getLogger("MemoryDriveManager")
+# Configure logging
+logger = logging.getLogger("CloudMemoryManager")
 logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
-class MemoryDriveManager:
-    def __init__(self, memory_size=50_000_000_000, local_memory_size=10_000_000_000):
-        self.memory_size = memory_size
-        self.local_memory_size = local_memory_size
+class CloudMemoryManager:
+    def __init__(self, local_cache_size=1_000_000_000, memory_path=None, use_efficient_backups=False):
+        self.local_cache_size = local_cache_size
         self.memory = None
         self.drive_service = None
         self.last_backup_date = None
-        self.memory_file_path = "brain_memory.bin"
-        self.memory_shape = (int(memory_size / 8), )  # 8 bytes per float64
+        self.last_sync_date = None
+        self.cloud_file_id = None
+        self.local_file_path = memory_path or "brain_memory_cache.bin"  # Use provided path or default
+        self.memory_shape = (int(local_cache_size / 8), )  # 8 bytes per float64
+        self.use_efficient_backups = use_efficient_backups
+        self.backup_drive_id = None  # Will be set later if needed
+        
         # Google Drive related settings
         self.scopes = ['https://www.googleapis.com/auth/drive']
         self.token_path = 'token.json'
         self.credentials_path = 'credentials.json'
         self.backup_folder_id = None
+        self.cloud_memory_name = "hextrix_brain_memory.bin"
 
     def initialize_memory(self):
-        """Create or load a memory-mapped numpy array for efficient large-scale storage."""
+        """Create or load a memory-mapped array for the local cache."""
         try:
             # Check if memory file exists
-            if os.path.exists(self.memory_file_path):
-                logger.info(f"Loading existing memory file: {self.memory_file_path}")
+            if os.path.exists(self.local_file_path):
+                logger.info(f"Loading existing memory cache: {self.local_file_path}")
                 # Load existing memory file
                 self.memory = np.memmap(
-                    self.memory_file_path,
+                    self.local_file_path,
                     dtype=np.float64,
                     mode='r+',
                     shape=self.memory_shape
                 )
             else:
-                logger.info(f"Creating new memory file: {self.memory_file_path}")
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(os.path.abspath(self.local_file_path)), exist_ok=True)
+                
+                logger.info(f"Creating new memory cache: {self.local_file_path}")
                 # Create new memory file
                 self.memory = np.memmap(
-                    self.memory_file_path,
+                    self.local_file_path,
                     dtype=np.float64,
                     mode='w+',
                     shape=self.memory_shape
@@ -60,27 +75,14 @@ class MemoryDriveManager:
                 self.memory[:] = 0
                 self.memory.flush()
             
-            logger.info(f"Memory initialized with shape: {self.memory.shape}")
+            logger.info(f"Memory cache initialized with shape: {self.memory.shape}")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize memory: {str(e)}")
-            # Create a smaller fallback memory if full size fails
-            try:
-                fallback_size = min(self.local_memory_size, 1_000_000_000)  # 1GB or smaller
-                fallback_shape = (int(fallback_size / 8), )
-                logger.info(f"Attempting fallback memory with size: {fallback_size}")
-                self.memory = np.memmap(
-                    "fallback_" + self.memory_file_path,
-                    dtype=np.float64,
-                    mode='w+',
-                    shape=fallback_shape
-                )
-                self.memory[:] = 0
-                self.memory.flush()
-                return True
-            except Exception as fallback_error:
-                logger.error(f"Fallback memory initialization failed: {str(fallback_error)}")
-                return False
+            logger.error(f"Failed to initialize memory cache: {str(e)}")
+            # Create an in-memory fallback
+            logger.info("Using in-memory array as fallback")
+            self.memory = np.zeros(int(self.local_cache_size / 8), dtype=np.float64)
+            return False
 
     def initialize_drive_service(self):
         """Initialize Google Drive service with proper authentication."""
@@ -88,10 +90,12 @@ class MemoryDriveManager:
             creds = None
             # Check if token file exists
             if os.path.exists(self.token_path):
-                creds = Credentials.from_authorized_user_info(
-                    json.loads(open(self.token_path, 'r').read()),
-                    self.scopes
-                )
+                try:
+                    creds = Credentials.from_authorized_user_file(self.token_path, self.scopes)
+                except Exception as e:
+                    logger.error(f"Error loading credentials from token.json: {e}")
+                    os.rename(self.token_path, f"{self.token_path}.bak")
+                    creds = None
             
             # If credentials don't exist or are invalid, refresh or get new ones
             if not creds or not creds.valid:
@@ -115,93 +119,102 @@ class MemoryDriveManager:
             self.drive_service = build('drive', 'v3', credentials=creds)
             logger.info("Google Drive service initialized successfully")
             
-            # Create or find backup folder
-            self._setup_backup_folder()
+            # Find or create memory file in Google Drive
+            self._setup_cloud_memory()
             return True
         
         except Exception as e:
             logger.error(f"Failed to initialize Drive service: {str(e)}")
             return False
-
-    def _setup_backup_folder(self):
-        """Create or find the backup folder in Google Drive."""
+    
+    def _setup_cloud_memory(self):
+        """Find or create the main memory file in Google Drive."""
         if not self.drive_service:
             logger.warning("Drive service not initialized")
             return
         
-        folder_name = "KairoMind_Backups"
-        
-        # Check if folder already exists
-        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results = self.drive_service.files().list(q=query, fields="files(id, name)").execute()
+        # Check if memory file already exists
+        query = f"name='{self.cloud_memory_name}' and trashed=false"
+        results = self.drive_service.files().list(q=query, fields="files(id, name, modifiedTime)").execute()
         items = results.get('files', [])
         
         if items:
-            self.backup_folder_id = items[0]['id']
-            logger.info(f"Found existing backup folder: {self.backup_folder_id}")
+            # Use the first matching file
+            self.cloud_file_id = items[0]['id']
+            logger.info(f"Found existing cloud memory file: {self.cloud_file_id} (modified: {items[0]['modifiedTime']})")
         else:
-            # Create new folder
+            # Create initial empty file in Drive
+            logger.info("Creating new cloud memory file")
+            # Create a small initial file
+            with open("initial_memory.bin", "wb") as f:
+                np.zeros(1000, dtype=np.float64).tofile(f)
+            
             file_metadata = {
-                'name': folder_name,
-                'mimeType': 'application/vnd.google-apps.folder'
+                'name': self.cloud_memory_name
             }
-            folder = self.drive_service.files().create(body=file_metadata, fields='id').execute()
-            self.backup_folder_id = folder.get('id')
-            logger.info(f"Created new backup folder: {self.backup_folder_id}")
-
-    def upload_to_drive(self, file_path, file_name=None):
-        """Upload a file to Google Drive."""
-        if not self.drive_service:
-            logger.warning("Drive service not initialized")
-            return None
-        
-        if not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
-            return None
-        
-        try:
-            # Use original filename if not specified
-            if file_name is None:
-                file_name = os.path.basename(file_path)
-            
-            # Prepare metadata
-            file_metadata = {
-                'name': file_name,
-                'parents': [self.backup_folder_id] if self.backup_folder_id else []
-            }
-            
-            # Create media
-            media = MediaFileUpload(
-                file_path,
-                resumable=True
-            )
-            
-            # Create the file
+            media = MediaFileUpload("initial_memory.bin", resumable=True)
             file = self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id'
             ).execute()
+            self.cloud_file_id = file.get('id')
+            logger.info(f"Created new cloud memory file with ID: {self.cloud_file_id}")
             
-            logger.info(f"File uploaded: {file_name}, ID: {file.get('id')}")
-            return file.get('id')
-        
-        except Exception as e:
-            logger.error(f"Failed to upload file {file_path}: {str(e)}")
-            return None
+            # Clean up local temp file
+            if os.path.exists("initial_memory.bin"):
+                os.remove("initial_memory.bin")
 
-    def download_from_drive(self, file_id, file_name):
-        """Download a file from Google Drive."""
-        if not self.drive_service:
-            logger.warning("Drive service not initialized")
+    def upload_memory(self):
+        """Upload the local memory cache to Google Drive."""
+        if not self.drive_service or not self.cloud_file_id:
+            logger.warning("Drive service or cloud file ID not available")
             return False
         
         try:
+            # Ensure memory is flushed to disk
+            if hasattr(self.memory, 'flush'):
+                self.memory.flush()
+            
+            logger.info(f"Uploading memory cache to Google Drive ({self.cloud_file_id})")
+            
+            # Create a temporary copy of the memory file to avoid issues with memory-mapped files
+            temp_file_path = f"{self.local_file_path}.tmp"
+            with open(self.local_file_path, 'rb') as src_file:
+                with open(temp_file_path, 'wb') as dest_file:
+                    dest_file.write(src_file.read())
+            
+            # Update the existing file using the temp file
+            media = MediaFileUpload(temp_file_path, resumable=True)
+            file = self.drive_service.files().update(
+                fileId=self.cloud_file_id,
+                media_body=media
+            ).execute()
+            
+            # Remove temp file
+            os.remove(temp_file_path)
+            
+            self.last_sync_date = datetime.datetime.now()
+            logger.info(f"Memory cache uploaded successfully at {self.last_sync_date}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload memory cache: {str(e)}")
+            return False
+
+    def download_memory(self):
+        """Download the cloud memory file to local cache."""
+        if not self.drive_service or not self.cloud_file_id:
+            logger.warning("Drive service or cloud file ID not available")
+            return False
+        
+        try:
+            logger.info(f"Downloading memory from Google Drive ({self.cloud_file_id})")
+            
             # Get file metadata
-            file_metadata = self.drive_service.files().get(fileId=file_id).execute()
+            file_metadata = self.drive_service.files().get(fileId=self.cloud_file_id).execute()
             
             # Create download request
-            request = self.drive_service.files().get_media(fileId=file_id)
+            request = self.drive_service.files().get_media(fileId=self.cloud_file_id)
             
             # Create a BytesIO stream to save the file content
             file_content = io.BytesIO()
@@ -213,137 +226,51 @@ class MemoryDriveManager:
                 status, done = downloader.next_chunk()
                 logger.info(f"Download progress: {int(status.progress() * 100)}%")
             
-            # Save the file
-            with open(file_name, 'wb') as f:
+            # First close the current memory map if it exists
+            if hasattr(self.memory, '_mmap'):
+                del self.memory
+            
+            # Save to a temporary file first
+            temp_file_path = f"{self.local_file_path}.downloading"
+            with open(temp_file_path, 'wb') as f:
                 f.write(file_content.getvalue())
             
-            logger.info(f"File downloaded: {file_name}")
+            # Atomically replace the existing file
+            if os.path.exists(self.local_file_path):
+                # On Windows, can't replace directly, so use a backup approach
+                backup_path = f"{self.local_file_path}.bak"
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                os.rename(self.local_file_path, backup_path)
+            
+            os.rename(temp_file_path, self.local_file_path)
+            
+            # Reload the memory map
+            self.memory = np.memmap(
+                self.local_file_path,
+                dtype=np.float64,
+                mode='r+',
+                shape=self.memory_shape
+            )
+            
+            self.last_sync_date = datetime.datetime.now()
+            logger.info(f"Memory downloaded successfully at {self.last_sync_date}")
             return True
-        
         except Exception as e:
-            logger.error(f"Failed to download file {file_id}: {str(e)}")
+            logger.error(f"Failed to download memory: {str(e)}")
             return False
-
-    def create_backup(self, frequency_days=7):
-        """Create a backup of the memory file if enough time has passed."""
-        if not self.drive_service:
-            logger.warning("Drive service not initialized")
-            return False
-        
-        # Check if a backup is needed
-        current_date = datetime.datetime.now()
-        if self.last_backup_date:
-            days_since_backup = (current_date - self.last_backup_date).days
-            if days_since_backup < frequency_days:
-                logger.info(f"Backup not needed yet. Days since last backup: {days_since_backup}")
-                return False
-        
-        # Ensure memory is flushed to disk
-        if self.memory is not None:
-            self.memory.flush()
-        
-        # Create timestamped backup name
-        timestamp = current_date.strftime("%Y%m%d_%H%M%S")
-        backup_name = f"brain_backup_{timestamp}.bin"
-        
-        # Upload memory file
-        file_id = self.upload_to_drive(self.memory_file_path, backup_name)
-        
-        if file_id:
-            self.last_backup_date = current_date
-            logger.info(f"Backup created: {backup_name}")
-            
-            # Clean up old backups
-            self._manage_backups(max_backups=5)
-            return True
-        else:
-            logger.error("Backup creation failed")
-            return False
-
-    def adaptive_upload(self, data_chunk, chunk_index, total_chunks):
-        """Upload a chunk of data with adaptive retry logic."""
-        if not self.drive_service:
-            logger.warning("Drive service not initialized")
-            return False
-        
-        # Create a temporary file for the chunk
-        chunk_file = f"temp_chunk_{chunk_index}.bin"
-        
-        try:
-            # Save the chunk to a temporary file
-            with open(chunk_file, 'wb') as f:
-                np.save(f, data_chunk)
-            
-            # Set up exponential backoff for retries
-            max_retries = 5
-            retry_wait = 1  # seconds
-            
-            for attempt in range(max_retries):
-                try:
-                    chunk_name = f"chunk_{chunk_index}_of_{total_chunks}.bin"
-                    file_id = self.upload_to_drive(chunk_file, chunk_name)
-                    
-                    if file_id:
-                        logger.info(f"Chunk {chunk_index}/{total_chunks} uploaded successfully")
-                        return file_id
-                    else:
-                        raise Exception("Upload returned no file ID")
-                
-                except Exception as retry_error:
-                    logger.warning(f"Upload attempt {attempt+1} failed: {str(retry_error)}")
-                    if attempt < max_retries - 1:
-                        wait_time = retry_wait * (2 ** attempt)
-                        logger.info(f"Retrying in {wait_time} seconds...")
-                        time.sleep(wait_time)
-                    else:
-                        raise
-            
-            return False
-        
-        except Exception as e:
-            logger.error(f"Failed to upload chunk {chunk_index}: {str(e)}")
-            return False
-        
-        finally:
-            # Clean up temporary file
-            if os.path.exists(chunk_file):
-                os.remove(chunk_file)
-
-    def _manage_backups(self, max_backups=5):
-        """Maintain a limited number of backups, removing oldest files if needed."""
-        if not self.drive_service or not self.backup_folder_id:
-            return
-        
-        try:
-            # Get all backup files
-            query = f"'{self.backup_folder_id}' in parents and trashed=false"
-            results = self.drive_service.files().list(
-                q=query,
-                orderBy='createdTime',
-                fields="files(id, name, createdTime)"
-            ).execute()
-            
-            backups = results.get('files', [])
-            
-            # Delete oldest backups if we have too many
-            if len(backups) > max_backups:
-                # Sort by creation time, oldest first
-                backups.sort(key=lambda x: x['createdTime'])
-                
-                # Delete oldest files
-                files_to_delete = backups[:-max_backups]
-                for file in files_to_delete:
-                    self.drive_service.files().delete(fileId=file['id']).execute()
-                    logger.info(f"Deleted old backup: {file['name']}")
-        
-        except Exception as e:
-            logger.error(f"Error managing backups: {str(e)}")
 
     def store_embeddings(self, embeddings, indices=None):
         """Store embedding vectors in the memory map."""
-        if self.memory is None:
+        if not hasattr(self, 'memory') or self.memory is None:
             logger.error("Memory not initialized")
-            return False
+            # Attempt to initialize memory if not already done
+            if hasattr(self, 'initialize_memory'):
+                success = self.initialize_memory()
+                if not success:
+                    return False
+            else:
+                return False
         
         try:
             if indices is None:
@@ -362,11 +289,17 @@ class MemoryDriveManager:
             
             # Store embeddings at the specified indices
             self.memory[indices] = embeddings
-            self.memory.flush()
+            if hasattr(self.memory, 'flush'):
+                self.memory.flush()
             
-            logger.info(f"Stored {len(embeddings)} embeddings at indices {indices[0]}-{indices[-1]}")
+            logger.info(f"Stored {len(embeddings)} embeddings at indices {indices[0]}-{indices[-1] if len(indices) > 1 else indices[0]}")
+            
+            # Auto-sync with cloud occasionally
+            if hasattr(self, 'last_sync_date') and hasattr(self, 'upload_memory'):
+                if self.last_sync_date is None or (datetime.datetime.now() - self.last_sync_date).total_seconds() > 3600:
+                    self.upload_memory()
+                    
             return indices
-        
         except Exception as e:
             logger.error(f"Failed to store embeddings: {str(e)}")
             return False
@@ -381,11 +314,12 @@ class MemoryDriveManager:
             embeddings = self.memory[indices]
             logger.info(f"Retrieved {len(indices)} embeddings")
             return embeddings
-        
         except Exception as e:
             logger.error(f"Failed to retrieve embeddings: {str(e)}")
             return None
-
+    def is_memory_initialized(self):
+        """Check if memory is properly initialized"""
+        return hasattr(self, 'memory') and self.memory is not None
     def search_similar_embeddings(self, query_embedding, top_k=5):
         """Find similar embeddings using cosine similarity."""
         if self.memory is None:
@@ -426,10 +360,136 @@ class MemoryDriveManager:
                 'indices': result_indices,
                 'similarities': similarities[top_indices]
             }
-        
         except Exception as e:
             logger.error(f"Failed to search similar embeddings: {str(e)}")
             return None
 
-import json  # Add this at the top of the file
-import time  # Add this at the top of the file
+    def create_backup(self, backup_name=None, frequency_days=7):
+        """Create a backup of the memory file in Google Drive."""
+        if not self.drive_service or not self.cloud_file_id:
+            logger.warning("Drive service or cloud file ID not available")
+            return False
+        
+        # If efficient backups are enabled, use that method instead
+        if hasattr(self, 'use_efficient_backups') and self.use_efficient_backups:
+            return self.create_efficient_backup(backup_name)
+        
+        try:
+            # First make sure our cloud memory is up to date
+            self.upload_memory()
+            
+            # Now create a backup copy
+            if backup_name is None:
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_name = f"hextrix_memory_backup_{timestamp}.bin"
+            
+            # Determine if we should use the backup drive
+            file_metadata = {'name': backup_name}
+            if hasattr(self, 'backup_drive_id') and self.backup_drive_id:
+                file_metadata['parents'] = [self.backup_drive_id]
+            
+            # Copy the file
+            copied_file = self.drive_service.files().copy(
+                fileId=self.cloud_file_id,
+                body=file_metadata
+            ).execute()
+            
+            logger.info(f"Backup created: {backup_name}, ID: {copied_file['id']}")
+            self.last_backup_date = datetime.datetime.now()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create backup: {str(e)}")
+            return False
+
+    def set_backup_drive_id(self, drive_id):
+        """Set the Google Drive ID to use for backups."""
+        self.backup_drive_id = drive_id
+        logger.info(f"Backup Google Drive ID set to: {drive_id}")
+        return True
+
+    def enable_dynamic_fetching(self, enabled=True):
+        """Enable or disable dynamic fetching of memories from cloud storage."""
+        self.dynamic_fetching_enabled = enabled
+        logger.info(f"Dynamic memory fetching {'enabled' if enabled else 'disabled'}")
+        return True
+
+    def set_backup_mode(self, mode):
+        """Set the backup mode (full, incremental, differential)."""
+        if mode not in ['full', 'incremental', 'differential']:
+            logger.error(f"Invalid backup mode: {mode}")
+            return False
+        
+        self.backup_mode = mode
+        logger.info(f"Backup mode set to: {mode}")
+        return True
+
+    def set_compression_level(self, level):
+        """Set the compression level for backups (0-9)."""
+        if not 0 <= level <= 9:
+            logger.error(f"Invalid compression level: {level} (must be 0-9)")
+            return False
+        
+        self.compression_level = level
+        logger.info(f"Backup compression level set to: {level}")
+        return True
+
+    def create_efficient_backup(self, backup_name=None):
+        """Create an efficient backup with compression that only includes non-zero data."""
+        if not self.drive_service:
+            logger.warning("Drive service not available")
+            return False
+        
+        try:
+            # First ensure memory is flushed to disk
+            if hasattr(self.memory, 'flush'):
+                self.memory.flush()
+            
+            # Find non-zero data
+            non_zero_indices = np.where(self.memory != 0)[0]
+            if len(non_zero_indices) == 0:
+                logger.info("No non-zero data to back up")
+                self.last_backup_date = datetime.datetime.now()
+                return True
+            
+            # Create temp file for compressed data
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_backup_file = f"temp_backup_{timestamp}.npz"
+            
+            # Save only non-zero data with compression
+            np.savez_compressed(
+                temp_backup_file,
+                indices=non_zero_indices,
+                values=self.memory[non_zero_indices],
+                shape=self.memory_shape
+            )
+            
+            # Set backup name
+            if backup_name is None:
+                backup_name = f"hextrix_memory_backup_{timestamp}.npz"
+            
+            # Create file metadata
+            file_metadata = {'name': backup_name}
+            if hasattr(self, 'backup_drive_id') and self.backup_drive_id:
+                file_metadata['parents'] = [self.backup_drive_id]
+            
+            # Upload to Google Drive
+            media = MediaFileUpload(temp_backup_file, resumable=True)
+            file = self.drive_service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id'
+            ).execute()
+            
+            # Clean up temp file
+            os.remove(temp_backup_file)
+            
+            # Log success
+            data_size = len(non_zero_indices) * 8
+            logger.info(f"Efficient backup created: {backup_name}, ID: {file.get('id')}")
+            logger.info(f"Backed up {len(non_zero_indices)} non-zero elements ({data_size/1024/1024:.2f} MB)")
+            
+            self.last_backup_date = datetime.datetime.now()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create efficient backup: {str(e)}")
+            return False

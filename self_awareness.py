@@ -54,6 +54,11 @@ class SelfAwareness:
             # Get current state through introspection
             current_state = self.jarvis.introspect()
             
+            # Check if current_state is valid
+            if current_state is None:
+                logger.error("Introspection returned None")
+                current_state = "# Error: Introspection failed to return valid data"
+            
             # Save timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
@@ -97,6 +102,12 @@ class SelfAwareness:
     def _save_current_model(self, timestamp):
         """Save current model to file."""
         try:
+            # Ensure current_model is a string
+            if self.current_model is None:
+                self.current_model = "# Error: No model data available"
+            elif not isinstance(self.current_model, str):
+                self.current_model = str(self.current_model)
+            
             model_path = os.path.join(self.self_models_dir, f"model_{timestamp}.py")
             with open(model_path, 'w') as f:
                 f.write(self.current_model)
@@ -127,6 +138,12 @@ class SelfAwareness:
         Returns:
             Dictionary with analysis summary
         """
+        # Ensure states are strings
+        if not isinstance(old_state, str):
+            old_state = str(old_state)
+        if not isinstance(new_state, str):
+            new_state = str(new_state)
+            
         # Create a diff object
         differ = difflib.Differ()
         diff = list(differ.compare(old_state.splitlines(), new_state.splitlines()))

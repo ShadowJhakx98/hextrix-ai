@@ -15,40 +15,72 @@ class KinectProcessor:
         self.cx = 319.5  # optical center x
         self.cy = 239.5  # optical center y
         
-    def initialize_cameras(self, color_index=0, depth_index=1):
-        """Initialize color and depth cameras."""
+    def initialize_cameras(self, color_index=0, depth_index=1, max_attempts=3):
+        """Initialize color and depth cameras with retry logic."""
         try:
-            self.color_capture = cv2.VideoCapture(color_index)
-            self.depth_capture = cv2.VideoCapture(depth_index)
+            # Try to release any previously initialized cameras
+            self.release()
             
-            # Try to set high resolution
-            self.color_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.color_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            
-            if not self.color_capture.isOpened() or not self.depth_capture.isOpened():
-                raise Exception("Failed to open camera streams")
-                
-            return True
+            # Add retry mechanism
+            for attempt in range(max_attempts):
+                try:
+                    self.color_capture = cv2.VideoCapture(color_index)
+                    self.depth_capture = cv2.VideoCapture(depth_index)
+                    
+                    # Try to set high resolution
+                    self.color_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                    self.color_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                    
+                    # Read a test frame to verify camera works
+                    ret_color, _ = self.color_capture.read()
+                    ret_depth, _ = self.depth_capture.read()
+                    
+                    if not ret_color or not ret_depth:
+                        print(f"Failed to read test frames from cameras (attempt {attempt+1}/{max_attempts})")
+                        self.release()
+                        if attempt < max_attempts - 1:
+                            print(f"Retrying in 2 seconds...")
+                            time.sleep(2)  # Wait before retrying
+                            continue
+                        else:
+                            return False
+                    
+                    print(f"Successfully initialized cameras on attempt {attempt+1}")
+                    return True
+                    
+                except Exception as e:
+                    print(f"Error initializing cameras on attempt {attempt+1}: {e}")
+                    self.release()
+                    if attempt < max_attempts - 1:
+                        print(f"Retrying in 2 seconds...")
+                        time.sleep(2)  # Wait before retrying
+                    
+            return False
         except Exception as e:
             print(f"Error initializing cameras: {e}")
+            self.release()
             return False
     
     def capture_frames(self):
-        """Capture color and depth frames."""
+        """Capture color and depth frames with error handling."""
         if not self.color_capture or not self.depth_capture:
             return None, None
         
-        # Capture color frame
-        ret_color, color_frame = self.color_capture.read()
-        if not ret_color:
+        try:
+            # Capture color frame
+            ret_color, color_frame = self.color_capture.read()
+            if not ret_color:
+                return None, None
+                
+            # Capture depth frame
+            ret_depth, depth_frame = self.depth_capture.read()
+            if not ret_depth:
+                return color_frame, None
+                
+            return color_frame, depth_frame
+        except Exception as e:
+            print(f"Error capturing frames: {e}")
             return None, None
-            
-        # Capture depth frame
-        ret_depth, depth_frame = self.depth_capture.read()
-        if not ret_depth:
-            return color_frame, None
-            
-        return color_frame, depth_frame
     
     def convert_depth_to_point_cloud(self, depth_image, color_image=None, depth_scale=1000.0, max_depth=3.0):
         """Convert depth image to point cloud."""
@@ -73,6 +105,10 @@ class KinectProcessor:
         # Filter out invalid depth values
         valid_indices = np.where((z > 0) & (z < max_depth))[0]
         
+        # Safety check for empty valid_indices
+        if len(valid_indices) == 0:
+            return PointCloud()  # Return empty point cloud
+            
         # Calculate 3D coordinates
         x = (pixel_x[valid_indices] - self.cx) * z[valid_indices] / self.fx
         y = (pixel_y[valid_indices] - self.cy) * z[valid_indices] / self.fy
@@ -83,7 +119,12 @@ class KinectProcessor:
         
         # Get colors if color image is available
         if color_image is not None:
-            colors = color_image.reshape(-1, 3)[valid_indices]
+            # Make sure color_image is the right shape for flattening
+            if len(color_image.shape) == 3 and color_image.shape[0] == height and color_image.shape[1] == width:
+                colors = color_image.reshape(-1, 3)[valid_indices]
+            else:
+                # Log a warning but continue without colors
+                print(f"Warning: Color image shape {color_image.shape} doesn't match depth shape {depth_image.shape}")
         
         # Create point cloud
         point_cloud = PointCloud(points=points, colors=colors if len(colors) > 0 else None)

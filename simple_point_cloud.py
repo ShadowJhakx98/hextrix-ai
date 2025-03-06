@@ -101,7 +101,13 @@ class PointCloud:
             result.colors = self.colors[valid_indices]
         
         return result, valid_indices
-    
+    def show_no_camera_message(self):
+        """Display a message when cameras are not available"""
+        message = "Kinect cameras not available"
+        self.socketio.emit('kinect_status', {
+            'status': 'error',
+            'message': message
+        })
     def visualize(self, title="Point Cloud"):
         """Visualize the point cloud using matplotlib."""
         fig = plt.figure(figsize=(10, 8))
